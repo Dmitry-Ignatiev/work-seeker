@@ -1,0 +1,684 @@
+// AI Job Seeker data model. See docs/architecture-plan.md, section 3.
+// Prisma 7: the connection URL lives in prisma.config.ts, the client is generated to /generated/prisma.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ───────────────────────── Auth (Better Auth core tables) ─────────────────────────
+
+model User {
+  id            String   @id
+  name          String
+  email         String   @unique
+  emailVerified Boolean  @default(false)
+  image         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @default(now()) @updatedAt
+
+  sessions      Session[]
+  accounts      Account[]
+  profile       Profile?
+  cvs           Cv[]
+  ownedJobs     Job[]          @relation("JobOwner")
+  matches       Match[]
+  applications  Application[]
+  contacts      Contact[]
+  savedSearches SavedSearch[]
+  notifications Notification[]
+  aiRuns        AiRun[]
+  chatThreads   ChatThread[]
+
+  @@map("user")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @default(now()) @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+// ───────────────────────── Enums ─────────────────────────
+
+enum RemotePref {
+  REMOTE
+  HYBRID
+  ONSITE
+  ANY
+}
+
+enum RemoteType {
+  REMOTE
+  HYBRID
+  ONSITE
+  UNKNOWN
+}
+
+enum ProfileItemType {
+  EXPERIENCE
+  EDUCATION
+  PROJECT
+  CERTIFICATION
+}
+
+enum EducationLevel {
+  NONE
+  HIGH_SCHOOL
+  ASSOCIATE
+  BACHELOR
+  MASTER
+  DOCTORATE
+}
+
+enum SkillLevel {
+  BASIC
+  PROFICIENT
+  EXPERT
+}
+
+enum DataSource {
+  USER
+  CV_IMPORT
+}
+
+enum CvStatus {
+  PARSED
+  FAILED
+}
+
+enum JobSource {
+  ADZUNA
+  JSEARCH
+  ARBEITNOW
+  REMOTEOK
+  REMOTIVE
+  GREENHOUSE
+  LEVER
+  ASHBY
+  URL
+  PASTE
+}
+
+enum ExtractionStatus {
+  PENDING
+  DONE
+  FAILED
+}
+
+enum RequirementKind {
+  SKILL
+  EXPERIENCE_YEARS
+  EDUCATION
+  LANGUAGE
+  LOCATION
+  WORK_AUTH
+  CERTIFICATION
+  SALARY
+  OTHER
+}
+
+enum Importance {
+  MUST
+  NICE
+}
+
+enum Verdict {
+  MET
+  PARTIAL
+  MISSING
+  UNKNOWN
+}
+
+enum DecidedBy {
+  RULE
+  AI
+}
+
+enum MatchStatus {
+  RULES_DONE
+  COMPLETE
+  FAILED
+}
+
+enum ApplicationStatus {
+  SAVED
+  APPLYING
+  APPLIED
+  SCREENING
+  INTERVIEWING
+  OFFER
+  REJECTED
+  WITHDRAWN
+  GHOSTED
+}
+
+enum ApplicationEventType {
+  STATUS_CHANGE
+  INTERVIEW
+  FOLLOW_UP
+  NOTE
+  REJECTION
+  OFFER
+}
+
+enum AtsType {
+  GREENHOUSE
+  LEVER
+  ASHBY
+}
+
+enum SearchFrequency {
+  DAILY
+  WEEKLY
+}
+
+enum RunStatus {
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+enum NotificationType {
+  NEW_MATCHES
+  FOLLOW_UP_DUE
+}
+
+enum AiRunKind {
+  EXTRACT_REQUIREMENTS
+  PARSE_CV
+  ASSESS_MATCH
+  CV_SUGGEST
+  ASSISTANT
+}
+
+enum ChatRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+// ───────────────────────── Skills taxonomy ─────────────────────────
+
+model Skill {
+  id            String  @id @default(cuid())
+  canonicalName String  @unique
+  category      String?
+
+  aliases          SkillAlias[]
+  profileSkills    ProfileSkill[]
+  profileItemLinks ProfileItemSkill[]
+  requirements     JobRequirement[]
+  cvSkills         CvSkill[]
+}
+
+model SkillAlias {
+  id      String @id @default(cuid())
+  /// Lowercased, trimmed.
+  alias    String  @unique
+  skillId  String
+  skill    Skill   @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  /// False for aliases that are also common words ("go", "r", "express"): exact-name lookups only,
+  /// never matched while scanning free text such as CVs.
+  textScan Boolean @default(true)
+
+  @@index([skillId])
+}
+
+// ───────────────────────── Profile (evidence for matching) ─────────────────────────
+
+model Profile {
+  id                 String     @id @default(cuid())
+  userId             String     @unique
+  user               User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  headline           String?
+  location           String?
+  countryCode        String?    @db.Char(2)
+  remotePref         RemotePref @default(ANY)
+  willingToRelocate  Boolean    @default(false)
+  /// ISO country codes where the user may work without sponsorship.
+  workAuthorizations String[]
+  /// [{ code: "en", level: "C1" }]
+  languages          Json       @default("[]")
+  salaryMin          Int?
+  salaryCurrency     String?    @db.Char(3)
+  targetRoles        String[]
+  /// Incremented on every profile change; part of the Match cache key.
+  version            Int        @default(1)
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  items  ProfileItem[]
+  skills ProfileSkill[]
+}
+
+model ProfileItem {
+  id             String          @id @default(cuid())
+  profileId      String
+  profile        Profile         @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  type           ProfileItemType
+  title          String
+  organization   String?
+  startDate      DateTime?       @db.Date
+  endDate        DateTime?       @db.Date
+  description    String          @default("")
+  educationLevel EducationLevel?
+  source         DataSource      @default(USER)
+  /// CV imports start unconfirmed and are ignored by matching until the user confirms them.
+  confirmed      Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  skills ProfileItemSkill[]
+
+  @@index([profileId, type])
+}
+
+model ProfileSkill {
+  id        String      @id @default(cuid())
+  profileId String
+  profile   Profile     @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  skillId   String
+  skill     Skill       @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  level     SkillLevel?
+  years     Float?
+  source    DataSource  @default(USER)
+  confirmed Boolean     @default(true)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@unique([profileId, skillId])
+  @@index([skillId])
+}
+
+model ProfileItemSkill {
+  profileItemId String
+  profileItem   ProfileItem @relation(fields: [profileItemId], references: [id], onDelete: Cascade)
+  skillId       String
+  skill         Skill       @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@id([profileItemId, skillId])
+  @@index([skillId])
+}
+
+// ───────────────────────── CVs (text only; files are never stored) ─────────────────────────
+
+model Cv {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label       String
+  fileName    String
+  sizeBytes   Int
+  pageCount   Int
+  contentHash String
+  textContent String
+  status      CvStatus
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  skills          CvSkill[]
+  recommendations CvRecommendation[]
+  applications    Application[]
+
+  @@unique([userId, contentHash])
+  @@index([userId])
+}
+
+model CvSkill {
+  cvId     String
+  cv       Cv     @relation(fields: [cvId], references: [id], onDelete: Cascade)
+  skillId  String
+  skill    Skill  @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  mentions Int    @default(1)
+
+  @@id([cvId, skillId])
+  @@index([skillId])
+}
+
+// ───────────────────────── Jobs (global; PASTE/private URL jobs have an owner) ─────────────────────────
+
+model Job {
+  id               String           @id @default(cuid())
+  source           JobSource
+  sourceJobId      String?
+  canonicalUrl     String?
+  /// sha256(normalized company + title + location)
+  fingerprint      String
+  /// Set for pasted or otherwise private postings; null = public, shared across users.
+  ownerUserId      String?
+  owner            User?            @relation("JobOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  title            String
+  company          String
+  location         String?
+  countryCode      String?          @db.Char(2)
+  remoteType       RemoteType       @default(UNKNOWN)
+  employmentType   String?
+  salaryMin        Int?
+  salaryMax        Int?
+  salaryCurrency   String?          @db.Char(3)
+  salaryPeriod     String?
+  postedAt         DateTime?
+  descriptionText  String
+  contentHash      String
+  extractionStatus ExtractionStatus @default(PENDING)
+  firstSeenAt      DateTime         @default(now())
+  lastSeenAt       DateTime         @default(now())
+  closedAt         DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  requirements JobRequirement[]
+  matches      Match[]
+  applications Application[]
+
+  @@unique([source, sourceJobId])
+  @@index([canonicalUrl])
+  @@index([fingerprint])
+  @@index([contentHash])
+  @@index([ownerUserId])
+}
+
+model JobRequirement {
+  id             String          @id @default(cuid())
+  jobId          String
+  job            Job             @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  kind           RequirementKind
+  importance     Importance
+  /// Verbatim text from Job.descriptionText; rows whose quote is not found there are never stored.
+  quote          String
+  skillId        String?
+  skill          Skill?          @relation(fields: [skillId], references: [id], onDelete: SetNull)
+  minYears       Float?
+  educationLevel EducationLevel?
+  languageCode   String?
+  countryCodes   String[]
+  position       Int             @default(0)
+
+  results MatchRequirementResult[]
+
+  @@index([jobId])
+}
+
+model CareerSource {
+  id            String    @id @default(cuid())
+  ats           AtsType
+  slug          String
+  companyName   String
+  lastFetchedAt DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@unique([ats, slug])
+}
+
+// ───────────────────────── Matching ─────────────────────────
+
+model Match {
+  id             String      @id @default(cuid())
+  userId         String
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobId          String
+  job            Job         @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  profileVersion Int
+  promptVersion  String
+  ruleScore      Int?
+  aiScore        Int?
+  overallScore   Int?
+  blockers       String[]
+  /// { summary, strengths[], gaps[] } validated against the zod schema in server/ai/schemas.
+  aiSummary      Json?
+  status         MatchStatus
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  results         MatchRequirementResult[]
+  recommendations CvRecommendation[]
+
+  @@unique([userId, jobId, profileVersion])
+  @@index([userId])
+}
+
+model MatchRequirementResult {
+  id            String         @id @default(cuid())
+  matchId       String
+  match         Match          @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  requirementId String
+  requirement   JobRequirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+  verdict       Verdict
+  decidedBy     DecidedBy
+  /// [{ type: "PROFILE_ITEM" | "PROFILE_SKILL" | "CV", id, quote }]
+  evidence      Json           @default("[]")
+  explanation   String
+  weight        Int
+  points        Float
+
+  @@unique([matchId, requirementId])
+}
+
+model CvRecommendation {
+  id            String  @id @default(cuid())
+  matchId       String
+  match         Match   @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  cvId          String
+  cv            Cv      @relation(fields: [cvId], references: [id], onDelete: Cascade)
+  coverageScore Int
+  rank          Int
+  rationale     String?
+  /// [{ action, requirementId, profileItemId, text }]
+  suggestions   Json    @default("[]")
+
+  @@unique([matchId, cvId])
+}
+
+// ───────────────────────── Application tracker ─────────────────────────
+
+model Application {
+  id             String            @id @default(cuid())
+  userId         String
+  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobId          String
+  job            Job               @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  cvId           String?
+  cv             Cv?               @relation(fields: [cvId], references: [id], onDelete: SetNull)
+  status         ApplicationStatus @default(SAVED)
+  appliedAt      DateTime?
+  nextFollowUpAt DateTime?
+  notes          String            @default("")
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  events   ApplicationEvent[]
+  contacts ApplicationContact[]
+
+  @@unique([userId, jobId])
+  @@index([userId, status])
+  @@index([nextFollowUpAt])
+}
+
+model ApplicationEvent {
+  id            String               @id @default(cuid())
+  applicationId String
+  application   Application          @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  type          ApplicationEventType
+  occurredAt    DateTime?
+  scheduledAt   DateTime?
+  payload       Json                 @default("{}")
+  createdAt     DateTime             @default(now())
+
+  @@index([applicationId])
+}
+
+model Contact {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  email       String?
+  phone       String?
+  linkedinUrl String?
+  company     String?
+  role        String?
+  notes       String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  applications ApplicationContact[]
+
+  @@index([userId])
+}
+
+model ApplicationContact {
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  contactId     String
+  contact       Contact     @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@id([applicationId, contactId])
+}
+
+// ───────────────────────── Automation ─────────────────────────
+
+model SavedSearch {
+  id        String          @id @default(cuid())
+  userId    String
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  query     String
+  /// { location, remoteOnly, countryCode, sources[], careerSourceIds[], minScore }
+  filters   Json            @default("{}")
+  frequency SearchFrequency @default(DAILY)
+  nextRunAt DateTime        @default(now())
+  enabled   Boolean         @default(true)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  runs SearchRun[]
+
+  @@index([enabled, nextRunAt])
+  @@index([userId])
+}
+
+model SearchRun {
+  id            String      @id @default(cuid())
+  savedSearchId String
+  savedSearch   SavedSearch @relation(fields: [savedSearchId], references: [id], onDelete: Cascade)
+  status        RunStatus   @default(RUNNING)
+  startedAt     DateTime    @default(now())
+  finishedAt    DateTime?
+  jobsSeen      Int         @default(0)
+  jobsNew       Int         @default(0)
+  jobsNotified  Int         @default(0)
+  error         String?
+
+  @@index([savedSearchId, status])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  payload   Json             @default("{}")
+  /// Prevents duplicates, e.g. "follow-up:<applicationId>:<date>".
+  dedupeKey String
+  readAt    DateTime?
+  emailedAt DateTime?
+  createdAt DateTime         @default(now())
+
+  @@unique([userId, dedupeKey])
+  @@index([userId, readAt])
+}
+
+// ───────────────────────── AI usage ledger & chat ─────────────────────────
+
+model AiRun {
+  id               String    @id @default(cuid())
+  userId           String?
+  user             User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  kind             AiRunKind
+  model            String
+  promptVersion    String
+  inputHash        String
+  inputTokens      Int       @default(0)
+  outputTokens     Int       @default(0)
+  cacheReadTokens  Int       @default(0)
+  cacheWriteTokens Int       @default(0)
+  succeeded        Boolean
+  error            String?
+  durationMs       Int
+  createdAt        DateTime  @default(now())
+
+  @@index([userId, createdAt])
+  @@index([kind, inputHash])
+}
+
+model ChatThread {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String   @default("New chat")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  messages ChatMessage[]
+
+  @@index([userId, updatedAt])
+}
+
+model ChatMessage {
+  id        String     @id
+  threadId  String
+  thread    ChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  role      ChatRole
+  /// AI SDK UIMessage parts.
+  parts     Json
+  createdAt DateTime   @default(now())
+
+  @@index([threadId, createdAt])
+}

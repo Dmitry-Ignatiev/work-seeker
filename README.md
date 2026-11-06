@@ -1,36 +1,59 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Work Seeker
 
-## Getting Started
+An AI job-search platform: paste a job link, see which requirements you meet (with evidence), get the best CV
+for it, and track the application. Built with Next.js 16, the Vercel AI SDK (Anthropic models), Prisma 7 +
+PostgreSQL and Better Auth. Everything runs on free services except the Anthropic API.
 
-First, run the development server:
+The full architecture and roadmap are in [docs/architecture-plan.md](docs/architecture-plan.md).
+**Status:** Phase 0 (foundation) is done. Product features start in Phase 1.
+
+## Local setup
+
+Requires Node 24. No Docker needed: Prisma ships a free local Postgres.
 
 ```bash
+npm install
+npm run db:dev          # local database
+npm run db:dev:test     # separate database for tests
+npx prisma dev ls       # shows both servers' URLs
+cp .env.example .env.local   # then fill in the URLs, BETTER_AUTH_SECRET and ANTHROPIC_API_KEY
+npm run db:migrate
+npm run db:seed         # skills taxonomy
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000. Outside production you can sign up with email and password. Production uses
+Google and GitHub sign-in only (see `.env.example`).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Script | What it does |
+| --- | --- |
+| `npm run dev` | Dev server |
+| `npm run typecheck` / `npm run lint` | Static checks |
+| `npm test` | Unit tests (pure code, no database) |
+| `npm run test:integration` | Integration tests against `TEST_DATABASE_URL` (it gets truncated) |
+| `npm run test:e2e` | Playwright tests against `TEST_DATABASE_URL`, with mocked AI. Stop other `next dev` servers for this folder first |
+| `npm run db:migrate` | Create and apply a migration, then regenerate the client |
+| `npm run db:seed` | Seed or update the skills taxonomy (idempotent) |
 
-## Learn More
+## Project layout
 
-To learn more about Next.js, take a look at the following resources:
+```
+app/              routes: (marketing) landing, (auth) sign-in, (app) signed-in pages, api/
+components/       UI (components/ui is shadcn)
+server/           server-only code
+  ai/             model choice, budget, PII redaction, AI call ledger, offline mocks
+  discovery/      job-board adapters
+  matching/       pure matching logic (skills taxonomy so far)
+  auth.ts, session.ts, db.ts
+prisma/           schema, migrations, seed + skills taxonomy data
+tests/            unit + integration (Vitest)
+e2e/              Playwright
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## AI usage
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+All model calls go through `server/ai/run.ts`. It checks the user's daily token budget, picks the model
+(`claude-haiku-5-5` for extraction, `claude-sonnet-5-5` for judgments), and records token counts in the
+`AiRun` table. Prompts and responses are never stored. Set `AI_MOCK=1` to run fully offline.

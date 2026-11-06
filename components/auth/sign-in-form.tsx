@@ -1,0 +1,118 @@
+'use client';
+
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useState, useTransition } from 'react';
+import { Button } from '@/components/ui/button';
+import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
+import { authClient } from '@/lib/auth-client';
+
+interface Props {
+  emailPassword: boolean;
+  google: boolean;
+  github: boolean;
+}
+
+/** Only allow same-site relative redirects. */
+function safeNext(next: string | null): string | null {
+  return next && next.startsWith('/') && !next.startsWith('//') ? next : null;
+}
+
+export function SignInForm({ emailPassword, google, github }: Props) {
+  const router = useRouter();
+  const next = safeNext(useSearchParams().get('next'));
+  const [mode, setMode] = useState<'sign-in' | 'sign-up'>('sign-in');
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  const social = (provider: 'google' | 'github') =>
+    startTransition(async () => {
+      setError(null);
+      const { error } = await authClient.signIn.social({
+        provider,
+        callbackURL: next ?? '/jobs',
+        newUserCallbackURL: '/onboarding',
+      });
+      if (error) setError(error.message ?? 'Sign-in failed.');
+    });
+
+  const submit = (form: FormData) =>
+    startTransition(async () => {
+      setError(null);
+      const email = String(form.get('email'));
+      const password = String(form.get('password'));
+      const result =
+        mode === 'sign-up'
+          ? await authClient.signUp.email({ email, password, name: String(form.get('name') || email) })
+          : await authClient.signIn.email({ email, password });
+      if (result.error) {
+        setError(result.error.message ?? 'Something went wrong.');
+        return;
+      }
+      router.push(mode === 'sign-up' ? '/onboarding' : (next ?? '/jobs'));
+      router.refresh();
+    });
+
+  const noMethods = !emailPassword && !google && !github;
+
+  return (
+    <div className="flex flex-col gap-4">
+      {google && (
+        <Button variant="outline" size="lg" disabled={pending} onClick={() => social('google')}>
+          Continue with Google
+        </Button>
+      )}
+      {github && (
+        <Button variant="outline" size="lg" disabled={pending} onClick={() => social('github')}>
+          Continue with GitHub
+        </Button>
+      )}
+
+      {emailPassword && (
+        <form action={submit} className="flex flex-col gap-4 rounded-xl border p-4">
+          <p className="text-xs text-muted-foreground">Email sign-in is for local development and tests only.</p>
+          <FieldGroup>
+            {mode === 'sign-up' && (
+              <Field>
+                <FieldLabel htmlFor="name">Name</FieldLabel>
+                <Input id="name" name="name" autoComplete="name" required />
+              </Field>
+            )}
+            <Field>
+              <FieldLabel htmlFor="email">Email</FieldLabel>
+              <Input id="email" name="email" type="email" autoComplete="email" required />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="password">Password</FieldLabel>
+              <Input
+                id="password"
+                name="password"
+                type="password"
+                minLength={10}
+                autoComplete={mode === 'sign-up' ? 'new-password' : 'current-password'}
+                required
+              />
+            </Field>
+          </FieldGroup>
+          <Button type="submit" disabled={pending}>
+            {mode === 'sign-up' ? 'Create account' : 'Sign in'}
+          </Button>
+          <button
+            type="button"
+            className="text-sm text-muted-foreground underline-offset-4 hover:underline"
+            onClick={() => setMode(m => (m === 'sign-in' ? 'sign-up' : 'sign-in'))}
+          >
+            {mode === 'sign-in' ? 'No account? Create one' : 'Have an account? Sign in'}
+          </button>
+        </form>
+      )}
+
+      {noMethods && (
+        <p className="text-sm text-muted-foreground">
+          No sign-in method is configured. Set GOOGLE_CLIENT_ID/SECRET or GITHUB_CLIENT_ID/SECRET.
+        </p>
+      )}
+      {error && <FieldError>{error}</FieldError>}
+    </div>
+  );
+}
