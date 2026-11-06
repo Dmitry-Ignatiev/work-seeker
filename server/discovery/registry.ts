@@ -1,4 +1,5 @@
 import 'server-only';
+import { gotfriends } from './scrape/gotfriends';
 import { adzuna } from './sources/adzuna';
 import { arbeitnow } from './sources/arbeitnow';
 import { jsearch } from './sources/jsearch';
@@ -7,11 +8,11 @@ import { remotive } from './sources/remotive';
 import type { SourceAdapter } from './types';
 
 /**
- * Job-board adapters. Each one decides via `enabled()` whether it runs:
- * keyed APIs need their env vars, Remotive needs ENABLE_REMOTIVE=true.
- * Persisted search across these sources arrives in Phase 7.
+ * Job sources besides the company boards (those live in the database, see server/services/jobs.ts).
+ * Each decides via `enabled()` whether it runs: keyed APIs need their env vars, Remotive needs
+ * ENABLE_REMOTIVE=true, and the GotFriends scraper can be switched off with SCRAPE_GOTFRIENDS=false.
  */
-export const ALL_SOURCES: readonly SourceAdapter[] = [arbeitnow, remoteok, adzuna, jsearch, remotive];
+export const ALL_SOURCES: readonly SourceAdapter[] = [gotfriends, jsearch, remoteok, arbeitnow, adzuna, remotive];
 
 export function enabledSources(): SourceAdapter[] {
   return ALL_SOURCES.filter(s => s.enabled());

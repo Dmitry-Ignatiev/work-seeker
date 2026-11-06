@@ -6,6 +6,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { config } from 'dotenv';
 import { PrismaClient } from '../generated/prisma/client';
 import { parseSkillTaxonomy } from '../server/matching/skills';
+import careerSources from './seed-data/career-sources.json' with { type: 'json' };
 import taxonomy from './seed-data/skills.json' with { type: 'json' };
 
 config({ path: ['.env.local', '.env'], quiet: true });
@@ -35,6 +36,17 @@ async function main() {
       }
     }
     console.log(`Seeded ${skills.length} skills and ${aliasCount} aliases.`);
+
+    // Company job boards (public Greenhouse/Lever/Ashby APIs). Keeps `enabled` as it is.
+    for (const board of careerSources.boards) {
+      const ats = board.ats.toUpperCase() as 'GREENHOUSE' | 'LEVER' | 'ASHBY';
+      await db.careerSource.upsert({
+        where: { ats_slug: { ats, slug: board.slug } },
+        create: { ats, slug: board.slug, companyName: board.companyName },
+        update: { companyName: board.companyName },
+      });
+    }
+    console.log(`Seeded ${careerSources.boards.length} company job boards.`);
   } finally {
     await db.$disconnect();
   }

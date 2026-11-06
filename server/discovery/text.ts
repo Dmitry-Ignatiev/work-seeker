@@ -10,7 +10,8 @@ const ENTITIES: Record<string, string> = {
 function decodeEntities(s: string): string {
   return s
     .replace(/&(amp|lt|gt|quot|nbsp|#39);/g, m => ENTITIES[m] ?? m)
-    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)));
+    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)));
 }
 
 /** Strip HTML tags (handles entity-encoded HTML too) and collapse whitespace. */

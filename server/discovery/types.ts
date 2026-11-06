@@ -1,7 +1,16 @@
-export type JobSource = 'remotive' | 'arbeitnow' | 'remoteok' | 'adzuna' | 'jsearch';
+export type JobSource =
+  | 'remotive'
+  | 'arbeitnow'
+  | 'remoteok'
+  | 'adzuna'
+  | 'jsearch'
+  | 'gotfriends'
+  | 'greenhouse'
+  | 'lever'
+  | 'ashby';
 
 export interface Job {
-  /** Globally unique id: `<source>:<native id>` */
+  /** Globally unique id: `<source>:<native id>` (company boards: `<ats>:<slug>:<native id>`). */
   id: string;
   source: JobSource;
   title: string;
@@ -12,7 +21,7 @@ export interface Job {
   tags: string[];
   url: string;
   postedAt?: string;
-  /** Plain-text description (HTML stripped). */
+  /** Plain-text description (HTML stripped). May be a summary until the full posting is fetched. */
   description: string;
 }
 
@@ -30,4 +39,6 @@ export interface SourceAdapter {
   label: string;
   enabled: () => boolean;
   search: (params: SearchParams) => Promise<Job[]>;
+  /** Overrides the default per-source timeout of a search. */
+  timeoutMs?: number;
 }

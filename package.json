@@ -16,7 +16,8 @@
     "db:seed": "prisma db seed",
     "db:dev": "prisma dev -d -n work-seeker",
     "db:dev:test": "prisma dev -d -n work-seeker-test",
-    "vercel-build": "prisma generate && prisma migrate deploy && prisma db seed && next build"
+    "vercel-build": "prisma generate && prisma migrate deploy && prisma db seed && next build",
+    "scrape:check": "tsx --conditions=react-server scripts/scrape-check.mts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.96",
