@@ -32,7 +32,14 @@ function agentFor(userId: string, model: MockLanguageModelV4) {
   return new ToolLoopAgent({
     model,
     tools: createAssistantTools({ search: { sources: [fixtureJobs] } }),
-    toolsContext: { searchJobs: { userId }, addJob: { userId }, getJob: { userId }, followCompany: { userId } },
+    toolsContext: {
+      searchJobs: { userId },
+      addJob: { userId },
+      getJob: { userId },
+      tailorCv: { userId },
+      confirmExperience: { userId },
+      followCompany: { userId },
+    },
     stopWhen: isStepCount(5),
   });
 }
@@ -83,7 +90,7 @@ describe('assistant', () => {
     // 2 of the 3 demo listings are backend roles; "Platform Engineer" is not, so it isn't saved.
     expect(await db.job.count()).toBe(2);
     const [run] = await db.aiRun.findMany();
-    expect(run).toMatchObject({ userId: user.id, kind: 'ASSISTANT', promptVersion: 'assistant-v3', succeeded: true });
+    expect(run).toMatchObject({ userId: user.id, kind: 'ASSISTANT', promptVersion: 'assistant-v4', succeeded: true });
     expect(run.inputTokens).toBeGreaterThan(0);
     expect(JSON.stringify(run)).not.toContain('Tel Aviv');
   });

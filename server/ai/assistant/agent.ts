@@ -1,4 +1,5 @@
 import 'server-only';
+import { createHmac } from 'node:crypto';
 import { isStepCount, ToolLoopAgent, type InferAgentUIMessage, type LanguageModel, type LanguageModelUsage } from 'ai';
 import { db } from '@/server/db';
 import { hashInput } from '../run';
@@ -7,6 +8,12 @@ import { ASSISTANT_INSTRUCTIONS, ASSISTANT_PROMPT_VERSION } from './prompt';
 import { createAssistantTools, type AssistantToolDeps } from './tools';
 
 export const MAX_STEPS = 10;
+
+/** A key for signing tool approvals, derived from the auth secret (no extra env var to manage). */
+function approvalSecret(): string {
+  const base = process.env.BETTER_AUTH_SECRET || 'local-development-only';
+  return createHmac('sha256', base).update('work-seeker:tool-approval').digest('base64url');
+}
 
 function buildAgent(model: LanguageModel, userId: string, deps: AssistantToolDeps, onUsage?: (usage: LanguageModelUsage) => Promise<void>) {
   const tools = createAssistantTools(deps);
@@ -23,8 +30,14 @@ function buildAgent(model: LanguageModel, userId: string, deps: AssistantToolDep
       searchJobs: { userId },
       addJob: { userId },
       getJob: { userId },
+      tailorCv: { userId },
+      confirmExperience: { userId },
       followCompany: { userId },
     },
+    // Recording experience the CV doesn't show needs the user's click.
+    toolApproval: { confirmExperience: 'user-approval' },
+    // Approvals come back from the browser: sign them so a forged "approved" is rejected.
+    experimental_toolApprovalSecret: approvalSecret(),
     stopWhen: isStepCount(MAX_STEPS),
     maxOutputTokens: 1_500,
     onEnd: onUsage ? ({ usage }) => onUsage(usage) : undefined,

@@ -11,6 +11,7 @@ import {
   type JobSummary,
   type SearchDeps,
 } from '@/server/services/jobs';
+import { confirmExperience, tailorCvForJob } from '@/server/services/tailor';
 
 /**
  * The assistant's tools. Each one is a thin wrapper over a service. The user id comes from the
@@ -105,6 +106,51 @@ export function createAssistantTools(deps: AssistantToolDeps = {}) {
           ? `${output.title} · ${output.company} · ${output.location}\n${untrusted(output.description.slice(0, MODEL_DESCRIPTION))}`
           : 'Job not found.',
       }),
+    }),
+
+    tailorCv: tool({
+      description:
+        "Tailor the user's CV to one job (by jobId): the job's keywords go into the summary and bullets only where the CV " +
+        'backs them; code verifies every change. Takes 20–40 seconds. The user sees a before/after card with a DOCX download. ' +
+        'Returns NEEDS_CV if the user has no CV yet (they then see an upload box).',
+      inputSchema: z.object({ jobId: z.string().min(1).max(100) }),
+      contextSchema: userContext,
+      execute: async ({ jobId }, { context }) => tailorCvForJob(context.userId, jobId),
+      toModelOutput: ({ output }) => ({
+        type: 'text',
+        value:
+          output.status === 'OK'
+            ? [
+                `Tailored CV saved for "${output.job.title}" at ${output.job.company}.`,
+                `Job keywords written in the CV: ${output.coverageBefore}/${output.keywordTotal} before, ${output.coverageAfter}/${output.keywordTotal} after.`,
+                `Accepted edits: ${output.changes.length}${output.changes.length ? ` (added: ${[...new Set(output.changes.flatMap(c => c.keywords))].join(', ') || 'wording only'})` : ''}.`,
+                output.skillsAdded.length ? `Added to skills (the CV already shows them): ${output.skillsAdded.join(', ')}.` : '',
+                output.rejected.length ? `Refused by the truth check: ${output.rejected.map(r => r.reason).join('; ')}.` : '',
+                output.missing.length
+                  ? `Missing from the CV (never added): ${output.missing.join(', ')}. Ask the user if any of these are true for them; if they say yes and describe it, use confirmExperience, then tailor again.`
+                  : '',
+                'The user sees all of this in a card with a download button: summarise it in 2–3 sentences, no lists of every change.',
+              ]
+                .filter(Boolean)
+                .join('\n')
+            : output.status === 'NEEDS_CV'
+              ? 'NEEDS_CV: the user has no CV yet. They now see an upload box under your message; ask them to upload their CV (PDF). After the upload, tailoring continues automatically.'
+              : output.status === 'CV_UNREADABLE'
+                ? `CV_UNREADABLE: ${output.reason}`
+                : 'Job not found.',
+      }),
+    }),
+
+    confirmExperience: tool({
+      description:
+        'Record experience the user has said they really have but their CV does not mention (e.g. "I used Terraform for 2 years"). ' +
+        'Only call it after the user states it in their own words. The user must approve it with a button.',
+      inputSchema: z.object({
+        keyword: z.string().min(1).max(60).describe('The skill or experience, e.g. "Terraform"'),
+        detail: z.string().min(3).max(500).describe("The user's own description of that experience"),
+      }),
+      contextSchema: userContext,
+      execute: async ({ keyword, detail }, { context }) => confirmExperience(context.userId, keyword, detail),
     }),
 
     followCompany: tool({
