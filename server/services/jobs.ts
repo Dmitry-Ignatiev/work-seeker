@@ -12,6 +12,7 @@ import { needsPaste, normalizeUrl } from '@/server/discovery/normalize-url';
 import { jobFingerprint, rankJobs, type Seniority } from '@/server/discovery/ranking';
 import { enabledSources } from '@/server/discovery/registry';
 import { fetchGotFriendsJob, GOTFRIENDS_COMPANY } from '@/server/discovery/scrape/gotfriends';
+import { fixtureJobs } from '@/server/discovery/sources/fixture';
 import { htmlToText, keywords } from '@/server/discovery/text';
 import type { Job, SourceAdapter } from '@/server/discovery/types';
 import { NotFoundError } from '@/server/errors';
@@ -93,6 +94,7 @@ const summarySelect = {
   location: true,
   remoteType: true,
   source: true,
+  sourceJobId: true,
   canonicalUrl: true,
   postedAt: true,
   descriptionText: true,
@@ -106,7 +108,8 @@ function toSummary(row: JobRow): JobSummary {
     company: row.company,
     location: row.location ?? 'Unknown',
     remote: row.remoteType === 'REMOTE',
-    source: SOURCE_LABEL[row.source],
+    // Offline demo listings (server/discovery/sources/fixture.ts) must never look like a real source.
+    source: row.sourceJobId?.startsWith('fixture-') ? 'Demo listing' : SOURCE_LABEL[row.source],
     url: row.canonicalUrl,
     postedAt: row.postedAt?.toISOString() ?? null,
     snippet: text.length > 280 ? `${text.slice(0, 277)}…` : text,
@@ -268,7 +271,7 @@ async function searchBoards(query: string): Promise<Job[]> {
     },
     orderBy: { postedAt: 'desc' },
     take: 300,
-    select: { ...summarySelect, sourceJobId: true },
+    select: summarySelect,
   });
   return rows.map(row => ({
     id: `${row.source.toLowerCase()}:${row.sourceJobId}`,
@@ -315,7 +318,9 @@ export interface SearchDeps {
   sources: SourceAdapter[];
 }
 
-const defaultDeps = (): SearchDeps => ({ sources: [companyBoards, ...enabledSources()] });
+/** E2E runs (E2E=1) search offline fixtures only: browser tests never contact real job sites. */
+const defaultDeps = (): SearchDeps =>
+  process.env.E2E === '1' ? { sources: [fixtureJobs] } : { sources: [companyBoards, ...enabledSources()] };
 
 /**
  * Searches every enabled source in parallel. A slow or failing source never breaks the search:
