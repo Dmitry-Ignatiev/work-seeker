@@ -381,6 +381,8 @@ model Cv {
   /// Sections/entries/bullets parsed from textContent (every string is a substring of it). Cached per structureVersion.
   structure        Json?
   structureVersion String?
+  /// Links read from the PDF (url, kind, label, anchor text); put back into tailored DOCX files by code.
+  links            Json?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 

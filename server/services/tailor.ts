@@ -1,6 +1,8 @@
 import 'server-only';
 import { redactPii } from '@/server/ai/redact';
 import { extractJobKeywords, proposeTailoring, STRUCTURE_PROMPT_VERSION, structureCv, TAILOR_PROMPT_VERSION } from '@/server/ai/tailoring';
+import { collectLinks, headerLinks, parseStoredLinks } from '@/server/cv/links';
+import type { ContactItem } from '@/server/tailor/docx';
 import { db } from '@/server/db';
 import { NotFoundError } from '@/server/errors';
 import { scanSkills } from '@/server/matching/cv-skills';
@@ -214,14 +216,28 @@ export async function tailorCvForJob(userId: string, jobId: string): Promise<Tai
 export async function getTailoredCvForDownload(userId: string, id: string) {
   const row = await db.tailoredCv.findFirst({
     where: { id, userId },
-    select: { content: true, job: { select: { title: true, company: true } }, cv: { select: { textContent: true } }, user: { select: { name: true } } },
+    select: {
+      content: true,
+      job: { select: { title: true, company: true } },
+      cv: { select: { textContent: true, links: true } },
+      user: { select: { name: true } },
+    },
   });
   if (!row) throw new NotFoundError('Tailored CV');
-  // Contact details come from the original CV text by pattern, never from a model.
+  // Contact details come from the original CV (its text by pattern, its links from the PDF), never from a model.
   const { emails, phones, urls } = redactPii(row.cv.textContent);
+  const pdfLinks = parseStoredLinks(row.cv.links);
+  const links = collectLinks([...pdfLinks, ...urls.map(url => ({ url, anchor: '' }))]);
+  const email = emails[0] ?? links.find(l => l.kind === 'EMAIL')?.label;
+  const contact: ContactItem[] = [
+    ...(email ? [{ text: email, url: `mailto:${email}` }] : []),
+    ...(phones[0] ? [{ text: phones[0] }] : []),
+    ...headerLinks(links).map(l => ({ text: l.label, url: l.url })),
+  ];
   return {
     name: row.user.name,
-    contact: [emails[0], phones[0], ...urls.slice(0, 2)].filter((c): c is string => Boolean(c)),
+    contact,
+    links,
     structure: row.content as unknown as CvStructure,
     fileName: `${row.user.name} - CV for ${row.job.title} at ${row.job.company}`.replace(/[\\/:*?"<>|]+/g, ' ').slice(0, 120),
   };

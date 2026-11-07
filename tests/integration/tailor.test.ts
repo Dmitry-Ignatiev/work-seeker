@@ -1,4 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { collectLinks } from '@/server/cv/links';
 import { db } from '@/server/db';
 import { NotFoundError } from '@/server/errors';
 import { createCv } from '@/server/services/cv';
@@ -113,10 +114,29 @@ describe('CV tailoring', () => {
     if (result.status !== 'OK') throw new Error(result.status);
 
     const cv = await getTailoredCvForDownload(user.id, result.id);
-    expect(cv.contact[0]).toBe('dana.levi@example.com');
+    expect(cv.contact[0]).toEqual({ text: 'dana.levi@example.com', url: 'mailto:dana.levi@example.com' });
     expect(cv.fileName).toBe('Test User - CV for Senior Backend Engineer at Acme Robotics');
     const buffer = await buildCvDocx(cv);
     expect(buffer.subarray(0, 2).toString()).toBe('PK'); // a .docx is a zip
     expect(buffer.length).toBeGreaterThan(3_000);
+  });
+
+  it('puts the links from the uploaded PDF back in the DOCX header, and re-uploading adds them to an older CV', async () => {
+    const { user, jobId } = await userWithCvAndJob(); // uploaded before links were read: none stored
+    const links = collectLinks([
+      { url: 'https://www.linkedin.com/in/dana-levi/', anchor: 'LinkedIn' },
+      { url: 'https://github.com/dana-levi', anchor: 'GitHub' },
+      { url: 'https://dana-levi.github.io/', anchor: 'Portfolio' },
+    ]);
+    // Same PDF text again, now with its links: the existing CV gets them (no duplicate CV).
+    const again = await createCv(user.id, { fileName: 'cv.pdf', sizeBytes: 1000, pageCount: 1, text: SAMPLE_CV_LINES.join('\n'), links });
+    expect(again.duplicate).toBe(true);
+    expect(await db.cv.count({ where: { userId: user.id } })).toBe(1);
+
+    const result = await tailorCvForJob(user.id, jobId);
+    if (result.status !== 'OK') throw new Error(result.status);
+    const cv = await getTailoredCvForDownload(user.id, result.id);
+    expect(cv.contact.map(c => c.text)).toEqual(['dana.levi@example.com', '+972 50 123 4567', 'LinkedIn', 'GitHub', 'Portfolio']);
+    expect(cv.contact[2].url).toBe('https://www.linkedin.com/in/dana-levi/');
   });
 });

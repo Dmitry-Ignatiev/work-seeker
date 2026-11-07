@@ -35,6 +35,27 @@ describe('extractPdfText', () => {
     expect(text).toContain('Open source work');
   });
 
+  it('reads the links behind text, with the words they sit on, and ignores unsafe ones', async () => {
+    const lines = ['Dana Levi', 'LinkedIn | GitHub', 'Projects', 'Robot Arm Controller (C++, ROS)', 'Built a controller', 'Bad link'];
+    const { links } = await extractPdfText(
+      makePdf([[...lines, ...SAMPLE_CV_LINES]], [
+        { page: 0, line: 1, url: 'https://www.linkedin.com/in/dana-levi/' },
+        { page: 0, line: 3, url: 'https://github.com/dana/robot-arm' },
+        { page: 0, line: 5, url: 'javascript:alert(1)' },
+      ]),
+    );
+    expect(links.map(l => [l.kind, l.url])).toEqual([
+      ['LINKEDIN', 'https://www.linkedin.com/in/dana-levi/'],
+      ['PROJECT', 'https://github.com/dana/robot-arm'],
+    ]);
+    expect(links[1].anchor).toContain('Robot Arm Controller');
+  });
+
+  it('uploads a PDF without links as before', async () => {
+    const { links } = await extractPdfText(makePdf([SAMPLE_CV_LINES]));
+    expect(links).toEqual([]);
+  });
+
   it('rejects PDFs with more than 20 pages', async () => {
     const pages = Array.from({ length: 21 }, () => SAMPLE_CV_LINES);
     await expect(extractPdfText(makePdf(pages))).rejects.toThrow('more than 20 pages');

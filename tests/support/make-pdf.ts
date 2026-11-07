@@ -1,10 +1,18 @@
+/** A clickable link over a whole line of text: `line` is the 0-based line index on page `page` (0-based). */
+export interface PdfLink {
+  page: number;
+  line: number;
+  url: string;
+}
+
 /**
- * Builds a small, valid text PDF (Helvetica, ASCII), one array of lines per page.
- * Used by unit and E2E tests so no binary fixtures live in the repo.
+ * Builds a small, valid text PDF (Helvetica, ASCII), one array of lines per page, optionally with link
+ * annotations over chosen lines. Used by unit and E2E tests so no binary fixtures live in the repo.
  */
-export function makePdf(pages: string[][]): Uint8Array {
+export function makePdf(pages: string[][], links: PdfLink[] = []): Uint8Array {
   const objects: string[] = [];
   const pageIds = pages.map((_, i) => 4 + i * 2);
+  let nextId = 4 + pages.length * 2;
   objects[1] = '<< /Type /Catalog /Pages 2 0 R >>';
   objects[2] = `<< /Type /Pages /Kids [${pageIds.map(id => `${id} 0 R`).join(' ')}] /Count ${pages.length} >>`;
   objects[3] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>';
@@ -14,9 +22,22 @@ export function makePdf(pages: string[][]): Uint8Array {
     const pageId = pageIds[i];
     const contentId = pageId + 1;
     const stream = `BT /F1 11 Tf 14 TL 50 760 Td ${lines.map(l => `(${escape(l)}) Tj T*`).join(' ')} ET`;
+    const annotIds = links
+      .filter(link => link.page === i)
+      .map(link => {
+        const id = nextId++;
+        const baseline = 760 - 14 * link.line;
+        // Helvetica 11 pt is about 6 pt per character: wide enough to cover the line.
+        const width = Math.ceil(lines[link.line].length * 6.2);
+        objects[id] =
+          `<< /Type /Annot /Subtype /Link /Rect [48 ${baseline - 3} ${50 + width} ${baseline + 10}] /Border [0 0 0] ` +
+          `/A << /S /URI /URI (${escape(link.url)}) >> >>`;
+        return id;
+      });
+    const annots = annotIds.length > 0 ? ` /Annots [${annotIds.map(id => `${id} 0 R`).join(' ')}]` : '';
     objects[pageId] =
       '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] ' +
-      `/Resources << /Font << /F1 3 0 R >> >> /Contents ${contentId} 0 R >>`;
+      `/Resources << /Font << /F1 3 0 R >> >> /Contents ${contentId} 0 R${annots} >>`;
     objects[contentId] = `<< /Length ${Buffer.byteLength(stream, 'latin1')} >>\nstream\n${stream}\nendstream`;
   });
 

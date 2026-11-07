@@ -1,5 +1,7 @@
 import 'server-only';
 import { createHash } from 'node:crypto';
+import type { Prisma } from '@/generated/prisma/client';
+import type { CvLink } from '@/server/cv/links';
 import { db } from '@/server/db';
 import { isUniqueViolation, NotFoundError } from '@/server/errors';
 import { scanSkills } from '@/server/matching/cv-skills';
@@ -21,6 +23,8 @@ export interface NewCv {
   sizeBytes: number;
   pageCount: number;
   text: string;
+  /** Links read from the PDF (server/cv/links.ts). */
+  links?: CvLink[];
 }
 
 const sha256 = (text: string) => createHash('sha256').update(text).digest('hex');
@@ -67,8 +71,13 @@ export async function createCv(userId: string, input: NewCv): Promise<{ id: stri
   const findExisting = () =>
     db.cv.findUnique({ where: { userId_contentHash: { userId, contentHash } }, select: { id: true } });
 
+  const links = input.links?.length ? (input.links as unknown as Prisma.InputJsonValue) : undefined;
   const existing = await findExisting();
-  if (existing) return { id: existing.id, duplicate: true };
+  if (existing) {
+    // Same text uploaded again: refresh its links (CVs uploaded before links were read had none).
+    if (links) await db.cv.update({ where: { id: existing.id }, data: { links } });
+    return { id: existing.id, duplicate: true };
+  }
 
   const aliases = await db.skillAlias.findMany({ where: { textScan: true }, select: { alias: true, skillId: true } });
   const mentions = scanSkills(input.text, aliases);
@@ -86,6 +95,7 @@ export async function createCv(userId: string, input: NewCv): Promise<{ id: stri
           pageCount: input.pageCount,
           contentHash,
           textContent: input.text,
+          links,
           status: 'PARSED',
           isDefault: !hasDefault,
         },

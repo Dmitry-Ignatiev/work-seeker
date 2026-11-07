@@ -1,5 +1,6 @@
 import 'server-only';
 import { extractText, getDocumentProxy } from 'unpdf';
+import { collectLinks, MAX_LINKS, type CvLink, type RawLink } from './links';
 
 /** Under Vercel's 4.5 MB function body limit, with room for the multipart envelope. */
 export const CV_MAX_BYTES = 4 * 1024 * 1024;
@@ -42,7 +43,7 @@ export function cleanPdfText(text: string): string {
  * Extracts a CV's text in memory. The bytes are never written anywhere.
  * Throws CvUploadError for anything the user can fix (wrong type, too big, too many pages, scanned, encrypted).
  */
-export async function extractPdfText(bytes: Uint8Array): Promise<{ text: string; pageCount: number }> {
+export async function extractPdfText(bytes: Uint8Array): Promise<{ text: string; pageCount: number; links: CvLink[] }> {
   checkPdfBytes(bytes);
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
@@ -70,9 +71,54 @@ async function parse(bytes: Uint8Array) {
     if (clean.replace(/\s/g, '').length < MIN_TEXT_CHARS) {
       throw new CvUploadError('No text found in this PDF. Is it a scanned image? Export it from Word or Docs instead.');
     }
-    return { text: clean.slice(0, MAX_TEXT_CHARS), pageCount: pdf.numPages };
+    return { text: clean.slice(0, MAX_TEXT_CHARS), pageCount: pdf.numPages, links: await readLinks(pdf) };
   } finally {
     // Frees the document and its worker-side state.
     await pdf.loadingTask.destroy();
   }
+}
+
+type Pdf = Awaited<ReturnType<typeof getDocumentProxy>>;
+interface TextItem {
+  str: string;
+  width: number;
+  transform: number[];
+}
+
+/**
+ * The web/email links in the PDF (link annotations) and the visible text under each one.
+ * Links are a nice-to-have: a PDF whose annotations can't be read still uploads, without them.
+ */
+async function readLinks(pdf: Pdf): Promise<CvLink[]> {
+  const raw: RawLink[] = [];
+  try {
+    for (let p = 1; p <= pdf.numPages && raw.length < MAX_LINKS * 4; p++) {
+      const page = await pdf.getPage(p);
+      const annotations = (await page.getAnnotations()) as { subtype?: string; url?: string; rect?: number[] }[];
+      const byUrl = new Map<string, number[][]>();
+      for (const a of annotations) {
+        if (a.subtype !== 'Link' || typeof a.url !== 'string' || !Array.isArray(a.rect)) continue;
+        byUrl.set(a.url, [...(byUrl.get(a.url) ?? []), a.rect]);
+      }
+      if (byUrl.size === 0) continue;
+      // Text runs only (marked-content entries have no text or position).
+      const items = (await page.getTextContent()).items.filter(i => 'str' in i) as unknown as TextItem[];
+      for (const [url, rects] of byUrl) raw.push({ url, anchor: textUnder(items, rects) });
+    }
+  } catch {
+    // Keep the links read so far.
+  }
+  return collectLinks(raw);
+}
+
+/** Text items whose baseline lies inside one of the link's rectangles, in reading order. */
+function textUnder(items: TextItem[], rects: number[][]): string {
+  const hits = items.filter(item => {
+    const x1 = item.transform[4];
+    const x2 = x1 + item.width;
+    const y = item.transform[5];
+    return rects.some(([rx1, ry1, rx2, ry2]) => x2 > rx1 + 0.5 && x1 < rx2 - 0.5 && y >= ry1 - 2 && y <= ry2 + 1);
+  });
+  hits.sort((a, b) => b.transform[5] - a.transform[5] || a.transform[4] - b.transform[4]);
+  return hits.map(i => i.str).join('');
 }
