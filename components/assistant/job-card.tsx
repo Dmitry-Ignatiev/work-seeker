@@ -38,10 +38,15 @@ export function JobCard({ job, onDetails, disabled }: { job: JobSummary; onDetai
         </p>
       )}
       <div className="mt-auto flex gap-2 pt-1">
-        {job.url && (
-          <a href={job.url} target="_blank" rel="noopener noreferrer" className={buttonVariants({ variant: 'outline', size: 'sm' })}>
-            Open job <ExternalLinkIcon aria-hidden />
-          </a>
+        {job.source === 'Demo listing' ? (
+          // Offline-mode listings are made up: no dead link to click.
+          <span className="self-center text-xs text-muted-foreground">Demo listing, no real posting</span>
+        ) : (
+          job.url && (
+            <a href={job.url} target="_blank" rel="noopener noreferrer" className={buttonVariants({ variant: 'outline', size: 'sm' })}>
+              Open job <ExternalLinkIcon aria-hidden />
+            </a>
+          )
         )}
         {onDetails && (
           <Button variant="ghost" size="sm" onClick={onDetails} disabled={disabled}>

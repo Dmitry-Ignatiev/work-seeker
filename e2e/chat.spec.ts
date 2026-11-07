@@ -25,7 +25,9 @@ test('describe a job, get job cards with links, then open one for details', asyn
   const card = jobs.getByRole('article', { name: 'Senior Backend Engineer (Node.js)' });
   await expect(card).toBeVisible();
   await expect(card.getByText('Acme Robotics (demo)')).toBeVisible();
-  await expect(card.getByRole('link', { name: 'Open job' })).toHaveAttribute('href', 'https://example.com/jobs/acme-backend');
+  // Offline listings are made up, so they show a label instead of a dead link.
+  await expect(card.getByText('Demo listing, no real posting')).toBeVisible();
+  await expect(card.getByRole('link', { name: 'Open job' })).toHaveCount(0);
   await expect(page.getByTestId('search-sources')).toContainText('Demo listings');
   await expect(page.getByTestId('assistant-message').last()).toContainText('Here are the jobs I found');
 
