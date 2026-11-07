@@ -231,7 +231,8 @@ export async function tailorCvForJob(userId: string, jobId: string): Promise<Tai
     changes: result.changes.map(c => ({ ...c, bulletId: c.bulletId === SUMMARY_ID ? 'summary' : c.bulletId })),
     skillsAdded: result.skillsAdded,
     rejected: result.rejected.map(({ before, proposed, reason }) => ({ before, proposed, reason })),
-    missing: result.missing,
+    // Only concrete things (tools, technologies, certifications): "customer obsession" isn't worth a prompt.
+    missing: result.missing.filter(m => keywords.find(k => k.keyword === m)?.strict),
     downloadUrl: `/api/tailored-cvs/${saved.id}/docx`,
     layout: parseStoredLayout(cv.layout) ? 'ORIGINAL' : cv.layoutNote === 'MULTI_COLUMN' ? 'MULTI_COLUMN' : 'TEMPLATE',
   };

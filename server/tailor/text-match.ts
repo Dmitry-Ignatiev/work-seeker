@@ -55,6 +55,42 @@ export function numbersIn(text: string): Set<string> {
   return new Set([...norm(text).matchAll(/\d+(?:[.,]\d+)*%?/g)].map(m => m[0].replace(/,/g, '')));
 }
 
+// Degree levels and the ways CVs write them (each pattern matches only its own level: "MBA" is a master's).
+// Single-letter forms need their dots ("B.S.", "M.A.") so "MS Office" isn't read as a degree.
+const W = '(?<![\\p{L}\\p{N}])';
+const E = '(?![\\p{L}\\p{N}])';
+const DEGREE_LEVELS: { level: string; pattern: RegExp }[] = [
+  { level: 'bachelor', pattern: new RegExp(`${W}(bachelor'?s?|b\\.?\\s?sc|b\\.\\s?s\\.?|b\\.\\s?a\\.?|ba|b\\.?\\s?eng|b\\.?\\s?tech|תואר ראשון)${E}`, 'iu') },
+  { level: 'master', pattern: new RegExp(`${W}(master'?s?|m\\.?\\s?sc|m\\.\\s?s\\.?|m\\.\\s?a\\.?|m\\.?\\s?eng|mba|תואר שני)${E}`, 'iu') },
+  { level: 'doctorate', pattern: new RegExp(`${W}(ph\\.?\\s?d\\.?|doctorate|doctoral|דוקטורט)${E}`, 'iu') },
+];
+
+/** "Bachelor's degree in Computer Science" → { level: 'bachelor', field: ['computer', 'science'] }; null if not a degree. */
+export function parseDegree(term: string): { level: string; field: string[] } | null {
+  const found = DEGREE_LEVELS.find(d => d.pattern.test(term));
+  if (!found) return null;
+  const field = norm(term)
+    .replace(found.pattern, ' ')
+    .replace(/\b(degree|in|of|or|and|a|an|the|related|field|equivalent|similar|relevant)\b/g, ' ')
+    .match(/\p{L}{3,}/gu);
+  return { level: found.level, field: field ?? [] };
+}
+
+/**
+ * Does the text hold the same degree under another spelling? "Bachelor's degree in Computer Science" matches a CV
+ * line "B.Sc. Computer Science (Data Science Specialization)": same level and every field word on that line.
+ */
+export function containsDegree(text: string, term: string): boolean {
+  const wanted = parseDegree(term);
+  if (!wanted) return false;
+  const level = DEGREE_LEVELS.find(d => d.level === wanted.level)!;
+  return text.split(/\n/).some(line => {
+    if (!level.pattern.test(line)) return false;
+    const words = norm(line);
+    return wanted.field.every(word => words.includes(word));
+  });
+}
+
 /** Text direction of a CV: Hebrew if it has more Hebrew letters than Latin ones. */
 export function isMostlyHebrew(text: string): boolean {
   const hebrew = (text.match(/[֐-׿]/g) ?? []).length;

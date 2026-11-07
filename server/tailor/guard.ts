@@ -1,5 +1,5 @@
 import { droppedWords } from './fit';
-import { containsTerm, containsTermExact, isQuoteIn, keywordKey, numbersIn } from './text-match';
+import { containsDegree, containsTerm, containsTermExact, isQuoteIn, keywordKey, numbersIn, parseDegree } from './text-match';
 import type { CvStructure, JobKeyword, TailorChange, TailorOutput, TailorRejection } from './types';
 
 /**
@@ -71,7 +71,8 @@ export function applyGuard(input: GuardInput): GuardResult {
 
   const confirmedKeys = new Set(input.confirmed.flatMap(c => [keywordKey(c), ...synonyms(c).map(keywordKey)]));
   const isConfirmed = (term: string) => [term, ...synonyms(term)].some(t => confirmedKeys.has(keywordKey(t)));
-  const inCv = (term: string) => [term, ...synonyms(term)].some(t => has(cvText, t));
+  // A degree also counts under the CV's own spelling ("B.Sc." for "Bachelor's degree").
+  const inCv = (term: string) => [term, ...synonyms(term)].some(t => has(cvText, t)) || containsDegree(cvText, term);
   const evidenced = (k: JobKeyword) => inCv(k.keyword) || isConfirmed(k.keyword);
   const literal = (text: string, k: JobKeyword) => has(text, k.keyword);
   const cvSkills = skillsIn(cvText);
@@ -153,6 +154,7 @@ export function applyGuard(input: GuardInput): GuardResult {
   for (const k of keywords) {
     if (!k.strict || !evidenced(k)) continue;
     if (literal(structureText(tailored), k) || literal(cvText, k)) continue;
+    if (parseDegree(k.keyword)) continue; // a degree isn't a skill; the CV's own wording stands
     tailored.skills.push(k.keyword);
     skillsAdded.push(k.keyword);
   }

@@ -63,7 +63,8 @@ export async function extractJobKeywords(userId: string | null, description: str
         system: KEYWORDS_SYSTEM,
         prompt: `<job_posting>\n${text}\n</job_posting>`,
         output: Output.object({ schema: extractedKeywordsSchema }),
-        maxOutputTokens: 2_500,
+        maxOutputTokens: 8_000, // includes the model's thinking
+        providerOptions: { anthropic: { effort: 'low' } },
       });
       return { value: result.output, usage: result.totalUsage };
     },
@@ -84,7 +85,8 @@ export async function structureCv(userId: string, redactedCv: string) {
         system: STRUCTURE_SYSTEM,
         prompt: `<cv>\n${text}\n</cv>`,
         output: Output.object({ schema: cvStructureSchema }),
-        maxOutputTokens: 6_000,
+        maxOutputTokens: 16_000, // includes the model's thinking
+        providerOptions: { anthropic: { effort: 'low' } },
       });
       return { value: result.output, usage: result.totalUsage };
     },
@@ -116,7 +118,8 @@ export async function proposeTailoring(userId: string, input: TailorPromptInput)
         system: TAILOR_SYSTEM,
         prompt: `<untrusted>\n${payload}\n</untrusted>\nPropose the edits.`,
         output: Output.object({ schema: tailorOutputSchema }),
-        maxOutputTokens: 4_000,
+        maxOutputTokens: 12_000, // includes the model's thinking
+        providerOptions: { anthropic: { effort: 'medium' } },
       });
       return { value: result.output, usage: result.totalUsage };
     },

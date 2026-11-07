@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { applyGuard, type GuardInput } from '@/server/tailor/guard';
-import { containsTerm, isQuoteIn, numbersIn } from '@/server/tailor/text-match';
+import { containsDegree, containsTerm, isQuoteIn, numbersIn, parseDegree } from '@/server/tailor/text-match';
 import type { CvStructure, JobKeyword, TailorOutput } from '@/server/tailor/types';
 import { buildStructure, validateKeywords } from '@/server/tailor/validate';
 
@@ -88,6 +88,22 @@ describe('truthfulness guard', () => {
       { structure, cvText: `${CV_TEXT}\n${summary}` },
     );
     expect(added.changes).toHaveLength(1);
+  });
+
+  it('reads the same degree under the CV’s spelling (B.Sc. = Bachelor’s), and not "MS Office" as a degree', () => {
+    const cv = 'B.Sc. Computer Science (Data Science Specialization), Sapir Academic College';
+    expect(containsDegree(cv, "Bachelor's degree in Computer Science")).toBe(true);
+    expect(containsDegree(cv, 'BSc in Computer Science or related field')).toBe(true);
+    expect(containsDegree(cv, "Bachelor's degree in Electrical Engineering")).toBe(false);
+    expect(containsDegree(cv, "Master's degree in Computer Science")).toBe(false);
+    expect(containsDegree('תואר ראשון במדעי המחשב', 'תואר ראשון במדעי המחשב')).toBe(true);
+    expect(parseDegree('MS Office')).toBeNull();
+    expect(parseDegree('MBA')).toMatchObject({ level: 'master' });
+
+    const degree = kw("Bachelor's degree in Computer Science");
+    const r = run({}, [degree], [], { cvText: `${CV_TEXT}\n${cv}` });
+    expect(r.missing).toEqual([]);
+    expect(r.skillsAdded).toEqual([]); // a degree isn't added to the skills list
   });
 
   it('rejects a technology the CV never mentions', () => {

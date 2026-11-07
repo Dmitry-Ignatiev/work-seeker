@@ -39,7 +39,16 @@ function buildAgent(model: LanguageModel, userId: string, deps: AssistantToolDep
     // Approvals come back from the browser: sign them so a forged "approved" is rejected.
     experimental_toolApprovalSecret: approvalSecret(),
     stopWhen: isStepCount(MAX_STEPS),
-    maxOutputTokens: 1_500,
+    // The model thinks before answering and that counts as output: room for both.
+    maxOutputTokens: 4_000,
+    providerOptions: {
+      anthropic: {
+        effort: 'medium',
+        // The chat history comes back from the browser rebuilt from UI messages, which can differ slightly from
+        // what the model saw. Drop thinking blocks that no longer match instead of failing the whole reply.
+        thinking: { blockBinding: { prefixMismatchBehavior: 'drop_block' } },
+      },
+    },
     onEnd: onUsage ? ({ usage }) => onUsage(usage) : undefined,
   });
 }

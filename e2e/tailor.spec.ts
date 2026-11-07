@@ -25,7 +25,11 @@ test('tailor a CV for a job: upload in chat, see what changed and what was refus
   await expect(result.getByRole('heading', { name: /CV tailored for Senior Backend Engineer/ })).toBeVisible();
   await expect(result.getByTestId('coverage')).toContainText('of 5');
   await expect(result.getByLabel('Changes')).toContainText('dashboards with a Node.js backend used by 40,000 customers');
+  // Refused rewrites are folded away; the reason is there when opened.
+  await expect(result.getByTestId('refused')).toContainText('1 suggested rewrite was kept as written');
+  await result.getByTestId('refused').getByText(/kept as written/).click();
   await expect(result.getByTestId('refused')).toContainText('"AWS" isn\'t in your CV');
+  await expect(result.getByTestId('missing')).toContainText('Not in your CV: AWS');
 
   // Download works for the owner.
   const href = await result.getByRole('link', { name: 'Download DOCX' }).getAttribute('href');
@@ -33,10 +37,8 @@ test('tailor a CV for a job: upload in chat, see what changed and what was refus
   expect(download.status()).toBe(200);
   expect(download.headers()['content-type']).toContain('wordprocessingml');
 
-  // AWS is missing: the user says they have it, approves, and it's saved.
-  await result.getByTestId('missing').getByRole('button', { name: 'I have AWS' }).click();
-  await expect(message).toHaveValue('I have real experience with AWS: ');
-  await message.pressSequentially('two years running our services on AWS at Acme');
+  // AWS is missing: the user says in the chat that they have it, approves, and it's saved.
+  await message.fill('I have real experience with AWS: two years running our services on AWS at Acme');
   await message.press('Enter');
 
   const confirm = page.getByTestId('confirm-experience');

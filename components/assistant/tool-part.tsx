@@ -30,8 +30,6 @@ function Failed({ children }: { children: React.ReactNode }) {
 export interface ToolPartActions {
   /** Sends a message as the user. */
   onAsk: (text: string) => void;
-  /** Puts text in the message box for the user to finish. */
-  onPrefill: (text: string) => void;
   /** Answers a tool approval request. */
   onApproval: (approvalId: string, approved: boolean) => void;
   busy: boolean;
@@ -41,7 +39,7 @@ const tailorRequest = (job: { id: string; title: string; company: string }) =>
   `Tailor my CV for "${job.title}" at ${job.company} (jobId ${job.id}).`;
 
 /** Renders one tool call: progress while it runs, then cards or a short status. */
-export function ToolPart({ part, onAsk, onPrefill, onApproval, busy }: { part: Part } & ToolPartActions) {
+export function ToolPart({ part, onAsk, onApproval, busy }: { part: Part } & ToolPartActions) {
   switch (part.type) {
     case 'tool-searchJobs': {
       if (part.state === 'output-error') return <Failed>The job search failed. Try again.</Failed>;
@@ -104,7 +102,7 @@ export function ToolPart({ part, onAsk, onPrefill, onApproval, busy }: { part: P
       }
       if (output.status === 'CV_UNREADABLE') return <Failed>{output.reason}</Failed>;
       if (output.status === 'JOB_NOT_FOUND') return <Failed>That job is no longer available.</Failed>;
-      return <TailoredCvCard result={output} onHaveSkill={keyword => onPrefill(`I have real experience with ${keyword}: `)} />;
+      return <TailoredCvCard result={output} />;
     }
 
     case 'tool-confirmExperience': {

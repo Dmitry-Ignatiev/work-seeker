@@ -37,14 +37,6 @@ export function AssistantChat() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  const prefill = (text: string) => {
-    setInput(text);
-    requestAnimationFrame(() => {
-      const box = inputRef.current;
-      box?.focus();
-      box?.setSelectionRange(text.length, text.length);
-    });
-  };
   const busy = status === 'submitted' || status === 'streaming';
 
   useEffect(() => {
@@ -115,7 +107,6 @@ export function AssistantChat() {
                       key={i}
                       part={part}
                       onAsk={send}
-                      onPrefill={prefill}
                       onApproval={(id, approved) => addToolApprovalResponse({ id, approved })}
                       busy={busy}
                     />

@@ -2,6 +2,7 @@ import { isStepCount, ToolLoopAgent } from 'ai';
 import { MockLanguageModelV4 } from 'ai/test';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { createAssistant } from '@/server/ai/assistant/agent';
+import { ASSISTANT_PROMPT_VERSION } from '@/server/ai/assistant/prompt';
 import { createAssistantTools } from '@/server/ai/assistant/tools';
 import { db } from '@/server/db';
 import { fixtureJobs } from '@/server/discovery/sources/fixture';
@@ -90,7 +91,7 @@ describe('assistant', () => {
     // 2 of the 3 demo listings are backend roles; "Platform Engineer" is not, so it isn't saved.
     expect(await db.job.count()).toBe(2);
     const [run] = await db.aiRun.findMany();
-    expect(run).toMatchObject({ userId: user.id, kind: 'ASSISTANT', promptVersion: 'assistant-v4', succeeded: true });
+    expect(run).toMatchObject({ userId: user.id, kind: 'ASSISTANT', promptVersion: ASSISTANT_PROMPT_VERSION, succeeded: true });
     expect(run.inputTokens).toBeGreaterThan(0);
     expect(JSON.stringify(run)).not.toContain('Tel Aviv');
   });
