@@ -19,6 +19,7 @@ const TIER: Record<AiRunKind, keyof typeof MODEL_IDS> = {
   ASSESS_MATCH: 'reasoning',
   CV_SUGGEST: 'reasoning',
   ASSISTANT: 'reasoning',
+  TAILOR_CV: 'reasoning',
 };
 
 export function isMockMode(): boolean {

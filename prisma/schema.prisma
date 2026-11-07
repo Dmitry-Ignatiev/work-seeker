@@ -21,19 +21,21 @@ model User {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @default(now()) @updatedAt
 
-  sessions           Session[]
-  accounts           Account[]
-  profile            Profile?
-  cvs                Cv[]
-  ownedJobs          Job[]          @relation("JobOwner")
-  matches            Match[]
-  applications       Application[]
-  contacts           Contact[]
-  savedSearches      SavedSearch[]
-  notifications      Notification[]
-  aiRuns             AiRun[]
-  chatThreads        ChatThread[]
-  careerSourcesAdded CareerSource[] @relation("CareerSourceAddedBy")
+  sessions            Session[]
+  accounts            Account[]
+  profile             Profile?
+  cvs                 Cv[]
+  ownedJobs           Job[]                 @relation("JobOwner")
+  matches             Match[]
+  applications        Application[]
+  contacts            Contact[]
+  savedSearches       SavedSearch[]
+  notifications       Notification[]
+  aiRuns              AiRun[]
+  chatThreads         ChatThread[]
+  tailoredCvs         TailoredCv[]
+  confirmedExperience ConfirmedExperience[]
+  careerSourcesAdded  CareerSource[]        @relation("CareerSourceAddedBy")
 
   @@map("user")
 }
@@ -237,6 +239,7 @@ enum AiRunKind {
   ASSESS_MATCH
   CV_SUGGEST
   ASSISTANT
+  TAILOR_CV
 }
 
 enum ChatRole {
@@ -351,23 +354,27 @@ model ProfileItemSkill {
 // ───────────────────────── CVs (text only; files are never stored) ─────────────────────────
 
 model Cv {
-  id          String   @id @default(cuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  label       String
-  fileName    String
-  sizeBytes   Int
-  pageCount   Int
-  contentHash String
-  textContent String
-  status      CvStatus
-  isDefault   Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label            String
+  fileName         String
+  sizeBytes        Int
+  pageCount        Int
+  contentHash      String
+  textContent      String
+  status           CvStatus
+  isDefault        Boolean  @default(false)
+  /// Sections/entries/bullets parsed from textContent (every string is a substring of it). Cached per structureVersion.
+  structure        Json?
+  structureVersion String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   skills          CvSkill[]
   recommendations CvRecommendation[]
   applications    Application[]
+  tailored        TailoredCv[]
 
   @@unique([userId, contentHash])
   @@index([userId])
@@ -420,6 +427,7 @@ model Job {
   updatedAt        DateTime         @updatedAt
 
   requirements JobRequirement[]
+  tailoredCvs  TailoredCv[]
   matches      Match[]
   applications Application[]
 
@@ -439,6 +447,8 @@ model JobRequirement {
   importance     Importance
   /// Verbatim text from Job.descriptionText; rows whose quote is not found there are never stored.
   quote          String
+  /// The keyword as named in the posting ("Kubernetes", "B2B SaaS"); checked against the quote.
+  keyword        String?
   skillId        String?
   skill          Skill?          @relation(fields: [skillId], references: [id], onDelete: SetNull)
   minYears       Float?
@@ -695,4 +705,45 @@ model ChatMessage {
   createdAt DateTime   @default(now())
 
   @@index([threadId, createdAt])
+}
+
+// ───────────────────────── CV tailoring ─────────────────────────
+
+model TailoredCv {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cvId           String
+  cv             Cv       @relation(fields: [cvId], references: [id], onDelete: Cascade)
+  jobId          String
+  job            Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  /// The tailored CV (structure with edited summary/bullets/skills), rendered to DOCX on demand.
+  content        Json
+  /// [{ bulletId, before, after, keywords[], reworded }]
+  changes        Json     @default("[]")
+  /// [{ bulletId?, before?, reason }] edits the guard refused
+  rejected       Json     @default("[]")
+  /// Job keywords neither in the CV nor confirmed: "add only if true".
+  missing        String[]
+  keywordTotal   Int
+  coverageBefore Int
+  coverageAfter  Int
+  promptVersion  String
+  createdAt      DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+model ConfirmedExperience {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  keyword    String
+  /// Normalized keyword for lookups and uniqueness.
+  keywordKey String
+  /// The user's own words about it, e.g. "2 years of Terraform at Acme".
+  detail     String
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, keywordKey])
 }

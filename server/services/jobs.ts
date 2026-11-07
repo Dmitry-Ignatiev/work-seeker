@@ -406,7 +406,8 @@ export async function loadFullJob(userId: string, jobId: string) {
     const descriptionText = page.description.slice(0, MAX_DESCRIPTION);
     return await db.job.update({
       where: { id: job.id },
-      data: { descriptionText, contentHash: sha256(descriptionText), location: page.location ?? job.location },
+      // New text: its keywords must be extracted again.
+      data: { descriptionText, contentHash: sha256(descriptionText), location: page.location ?? job.location, extractionStatus: 'PENDING' },
     });
   } catch {
     return job; // The summary is still usable.
@@ -496,7 +497,8 @@ export async function addJobFromText(
   const text = input.text.trim().slice(0, MAX_DESCRIPTION);
   if (text.length < 200) return { status: 'INVALID', reason: 'That description is too short. Paste the full job post.' };
   const contentHash = sha256(text);
-  const title = (input.title?.trim() || text.split('\n')[0]).slice(0, 200);
+  // No title given: the first sentence of the first line, not a whole paragraph.
+  const title = (input.title?.trim() || text.split('\n')[0].split(/(?<=[.!?])\s/)[0]).slice(0, 120);
   const company = input.company?.trim() || 'Unknown company';
   const location = input.location?.trim() || '';
   const source = input.source ?? 'PASTE';

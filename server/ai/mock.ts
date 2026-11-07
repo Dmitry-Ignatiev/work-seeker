@@ -29,7 +29,7 @@ export function createMockModel(kind: AiRunKind): MockLanguageModelV4 {
     provider: 'mock',
     modelId: `mock-${kind.toLowerCase()}`,
     doGenerate: async callOptions => {
-      const responder = responders.get(kind);
+      const responder = responders.get(kind) ?? DEFAULT_RESPONDERS[kind];
       if (!responder) throw new Error(`No mock responder registered for ${kind}`);
       const out = await responder(callOptions);
       return {
@@ -73,6 +73,11 @@ function nextStep(callOptions: unknown): { toolName: string; input: unknown } | 
   const last = lastMessage(callOptions);
   if (last?.role === 'tool') {
     const result = JSON.stringify(last.content);
+    if (result.includes('NEEDS_CV')) return { text: 'Upload your CV in the box above and I’ll tailor it right after.' };
+    if (result.includes('Tailored CV saved')) {
+      return { text: 'Your tailored CV is ready. I only used keywords your CV already backs; the rest are listed as missing.' };
+    }
+    if (result.includes('keywordKey') || result.includes('"detail"')) return { text: 'Saved. Ask me to tailor your CV again to use it.' };
     if (result.includes('NEEDS_PASTE')) return { text: 'I can\u2019t read that site automatically. Please paste the job description here.' };
     if (result.includes('No matching jobs')) return { text: 'I didn\u2019t find matching jobs. Try a broader search.' };
     if (result.includes('untrusted_job_content') && !result.includes('jobId')) {
@@ -82,7 +87,10 @@ function nextStep(callOptions: unknown): { toolName: string; input: unknown } | 
   }
   const text = textOf(last).trim();
   const jobId = text.match(/jobId\s+([\w-]+)/)?.[1];
+  if (jobId && /tailor|uploaded my CV/i.test(text)) return { toolName: 'tailorCv', input: { jobId } };
   if (jobId) return { toolName: 'getJob', input: { jobId } };
+  const confirmed = text.match(/I (?:do )?have (?:real )?experience with ([^:]+):\s*(.+)/i);
+  if (confirmed) return { toolName: 'confirmExperience', input: { keyword: confirmed[1].trim(), detail: confirmed[2].trim() } };
   const url = text.match(/https?:\/\/\S+/)?.[0];
   if (url) return { toolName: 'addJob', input: { url } };
   if (/weather|joke|recipe/i.test(text)) return { text: 'I can only help with job search and CVs.' };
@@ -128,3 +136,73 @@ function createScriptedAssistant(): MockLanguageModelV4 {
     },
   });
 }
+
+// ───────────────────────── Default responders for the tailoring calls (offline, deterministic) ─────────────────────────
+
+/** The user message the model was sent (the system prompt also mentions the tags, so it's skipped). */
+function promptText(callOptions: unknown): string {
+  return textOf(lastMessage(callOptions));
+}
+
+const between = (text: string, open: string, close: string) => {
+  const start = text.indexOf(open);
+  const end = text.lastIndexOf(close);
+  return start >= 0 && end > start ? text.slice(start + open.length, end).trim() : '';
+};
+
+const MOCK_TECH = ['Node.js', 'TypeScript', 'AWS', 'PostgreSQL', 'Docker', 'Kubernetes', 'React', 'gRPC', 'Terraform', 'Python', 'Go'];
+
+/** Keywords: known technologies the posting names, each quoted with its sentence. */
+function mockKeywords(callOptions: unknown) {
+  const posting = between(promptText(callOptions), '<job_posting>', '</job_posting>');
+  // Split on sentence ends followed by whitespace: "Node.js" has a dot but no space after it.
+  const sentences = posting.split(/(?<=[.!?])\s+|\n/);
+  const keywords = MOCK_TECH.flatMap(keyword => {
+    const pattern = new RegExp(`(?<![\\w.])${keyword.replace(/[.+]/g, '\\$&')}(?![\\w])`);
+    const sentence = sentences.find(s => pattern.test(s));
+    return sentence ? [{ keyword, kind: 'TECH', importance: 'MUST', quote: sentence.trim() }] : [];
+  });
+  return { keywords };
+}
+
+/** CV structure: one experience entry; sentence-like lines are its bullets. */
+function mockCvStructure(callOptions: unknown) {
+  const lines = between(promptText(callOptions), '<cv>', '</cv>')
+    .split('\n')
+    .map(l => l.trim())
+    .filter(Boolean);
+  const role = lines.find(l => /,.*\d{4}/.test(l));
+  return {
+    headline: undefined,
+    sections: [
+      {
+        kind: 'EXPERIENCE',
+        heading: lines.find(l => /^experience$/i.test(l)) ?? 'Experience',
+        entries: [{ title: role, bullets: lines.filter(l => l.length > 40 && /\.$/.test(l)) }],
+      },
+    ],
+    skills: [],
+  };
+}
+
+/**
+ * Tailoring: one truthful edit (mentions Node.js, which the CV has elsewhere) and one the guard must
+ * refuse (claims AWS, which the CV never mentions).
+ */
+function mockTailoring(callOptions: unknown) {
+  const payload = JSON.parse(between(promptText(callOptions), '<untrusted>', '</untrusted>') || '{}') as {
+    cv?: { bullets?: { id: string; text: string }[] };
+  };
+  const edits = (payload.cv?.bullets ?? []).flatMap(b => {
+    if (b.text.includes('dashboards')) return [{ bulletId: b.id, text: b.text.replace('dashboards', 'dashboards with a Node.js backend'), evidence: [] }];
+    if (b.text.includes('Node.js APIs')) return [{ bulletId: b.id, text: b.text.replace(/\.$/, ' on AWS.'), evidence: [] }];
+    return [];
+  });
+  return { summary: null, edits };
+}
+
+const DEFAULT_RESPONDERS: Partial<Record<AiRunKind, MockResponder>> = {
+  EXTRACT_REQUIREMENTS: mockKeywords,
+  PARSE_CV: mockCvStructure,
+  TAILOR_CV: mockTailoring,
+};
