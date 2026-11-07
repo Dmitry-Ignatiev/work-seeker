@@ -46,7 +46,8 @@ function buildAgent(model: LanguageModel, userId: string, deps: AssistantToolDep
         effort: 'medium',
         // The chat history comes back from the browser rebuilt from UI messages, which can differ slightly from
         // what the model saw. Drop thinking blocks that no longer match instead of failing the whole reply.
-        thinking: { blockBinding: { prefixMismatchBehavior: 'drop_block' } },
+        // The API requires the thinking type with it; adaptive is the models' default anyway.
+        thinking: { type: 'adaptive', blockBinding: { prefixMismatchBehavior: 'drop_block' } },
       },
     },
     onEnd: onUsage ? ({ usage }) => onUsage(usage) : undefined,
