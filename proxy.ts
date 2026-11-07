@@ -22,5 +22,6 @@ export const config = {
     '/cvs/:path*',
     '/searches/:path*',
     '/assistant/:path*',
+    '/recovery-code/:path*',
   ],
 };

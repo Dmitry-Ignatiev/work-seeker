@@ -1,19 +1,10 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
+import { signUp } from './helpers';
 
 // The dev server runs with AI_MOCK=1 and E2E=1: a scripted model and offline demo listings.
 
-async function signUp(page: Page) {
-  await page.goto('/sign-in');
-  await page.getByRole('button', { name: 'No account? Create one' }).click();
-  await page.getByLabel('Name').fill('Chat Tester');
-  await page.getByLabel('Email').fill(`chat-${Date.now()}@example.test`);
-  await page.getByLabel('Password').fill('e2e-password-123');
-  await page.getByRole('button', { name: 'Create account' }).click();
-  await expect(page).toHaveURL(/\/assistant$/);
-}
-
 test('describe a job, get job cards with links, then open one for details', async ({ page }) => {
-  await signUp(page);
+  await signUp(page, 'Chat Tester', 'chat');
   await expect(page.getByRole('heading', { name: 'Find your next high-tech job' })).toBeVisible();
 
   const message = page.getByLabel('Message');
@@ -37,7 +28,7 @@ test('describe a job, get job cards with links, then open one for details', asyn
 });
 
 test('example prompts start a search', async ({ page }) => {
-  await signUp(page);
+  await signUp(page, 'Chat Tester', 'chat');
   await page.getByRole('button', { name: 'Remote DevOps roles with Kubernetes' }).click();
   await expect(page.getByLabel('Jobs found').getByRole('article').first()).toBeVisible();
 });

@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
@@ -49,7 +50,8 @@ export function SignInForm({ emailPassword, google, github }: Props) {
         setError(result.error.message ?? 'Something went wrong.');
         return;
       }
-      router.push(mode === 'sign-up' ? '/assistant' : (next ?? '/assistant'));
+      // New accounts first get the chance to save a recovery code (there is no email reset).
+      router.push(mode === 'sign-up' ? '/recovery-code?welcome=1' : (next ?? '/assistant'));
       router.refresh();
     });
 
@@ -96,6 +98,11 @@ export function SignInForm({ emailPassword, google, github }: Props) {
           <Button type="submit" disabled={pending}>
             {mode === 'sign-up' ? 'Create account' : 'Sign in'}
           </Button>
+          {mode === 'sign-in' && (
+            <Link href="/forgot-password" className="text-center text-sm text-muted-foreground underline-offset-4 hover:underline">
+              Forgot password?
+            </Link>
+          )}
           <button
             type="button"
             className="text-sm text-muted-foreground underline-offset-4 hover:underline"

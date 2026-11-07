@@ -12,11 +12,20 @@ const github = authOptions.github
   ? { clientId: process.env.GITHUB_CLIENT_ID!, clientSecret: process.env.GITHUB_CLIENT_SECRET! }
   : undefined;
 
+const RESET_LINK_MINUTES = 60;
+
 export const auth = betterAuth({
   database: prismaAdapter(db, { provider: 'postgresql' }),
-  // Email + password is the main way in. No email verification or password reset yet: those need an
-  // email-sending service (Resend Free needs a verified domain). Rate limiting below protects sign-in.
-  emailAndPassword: { enabled: authOptions.emailPassword, minPasswordLength: 10 },
+  // Email + password is the main way in. No email is sent: a forgotten password is reset with the
+  // user's recovery code (server/services/recovery.ts) or an admin link (scripts/reset-link.mts),
+  // both through Better Auth's reset endpoint.
+  emailAndPassword: {
+    enabled: authOptions.emailPassword,
+    minPasswordLength: 10,
+    resetPasswordTokenExpiresIn: RESET_LINK_MINUTES * 60,
+    // A reset signs out every device, in case the old password was stolen.
+    revokeSessionsOnPasswordReset: true,
+  },
   socialProviders: { ...(google && { google }), ...(github && { github }) },
   // E2E creates many accounts from one IP within seconds; real traffic is always rate limited.
   rateLimit: { enabled: process.env.E2E !== '1' },

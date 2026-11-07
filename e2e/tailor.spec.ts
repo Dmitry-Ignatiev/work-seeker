@@ -1,17 +1,12 @@
 import { expect, test } from '@playwright/test';
+import { signUp } from './helpers';
 import { makePdf, SAMPLE_CV_LINES } from '../tests/support/make-pdf';
 
 // AI_MOCK=1 + E2E=1: demo listings, a scripted agent, and offline tailoring that proposes one truthful edit
 // (Node.js, which the CV has) and one the guard must refuse (AWS, which it doesn't).
 
 test('tailor a CV for a job: upload in chat, see what changed and what was refused, confirm a skill, download', async ({ page }) => {
-  await page.goto('/sign-in');
-  await page.getByRole('button', { name: 'No account? Create one' }).click();
-  await page.getByLabel('Name').fill('Tailor Tester');
-  await page.getByLabel('Email').fill(`tailor-${Date.now()}@example.test`);
-  await page.getByLabel('Password').fill('e2e-password-123');
-  await page.getByRole('button', { name: 'Create account' }).click();
-  await expect(page).toHaveURL(/\/assistant$/);
+  await signUp(page, 'Tailor Tester', 'tailor');
 
   const message = page.getByLabel('Message');
   await message.fill('Senior backend jobs in Tel Aviv');

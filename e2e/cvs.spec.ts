@@ -1,18 +1,9 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
+import { signUp } from './helpers';
 import { makePdf, SAMPLE_CV_LINES } from '../tests/support/make-pdf';
 
-async function signUp(page: Page) {
-  await page.goto('/sign-in');
-  await page.getByRole('button', { name: 'No account? Create one' }).click();
-  await page.getByLabel('Name').fill('CV Tester');
-  await page.getByLabel('Email').fill(`cv-${Date.now()}@example.test`);
-  await page.getByLabel('Password').fill('e2e-password-123');
-  await page.getByRole('button', { name: 'Create account' }).click();
-  await expect(page).toHaveURL(/\/assistant$/);
-}
-
 test('upload a CV, see its skills, then delete it', async ({ page }) => {
-  await signUp(page);
+  await signUp(page, 'CV Tester', 'cv');
   await page.goto('/cvs');
 
   const input = page.getByLabel('Upload your CV (PDF)');
@@ -38,7 +29,7 @@ test('upload a CV, see its skills, then delete it', async ({ page }) => {
 });
 
 test('a file that is not a PDF is rejected with a clear message', async ({ page }) => {
-  await signUp(page);
+  await signUp(page, 'CV Tester', 'cv');
   await page.goto('/cvs');
   const input = page.getByLabel('Upload your CV (PDF)');
   await expect(input).toBeEnabled(); // enabled once hydrated

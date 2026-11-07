@@ -19,7 +19,8 @@
     "vercel-build": "prisma generate && prisma migrate deploy && prisma db seed && next build",
     "scrape:check": "tsx --conditions=react-server scripts/scrape-check.mts",
     "dev:offline": "node scripts/dev-offline.mjs",
-    "dev:live-jobs": "node scripts/dev-offline.mjs --live-jobs"
+    "dev:live-jobs": "node scripts/dev-offline.mjs --live-jobs",
+    "reset-link": "tsx --conditions=react-server scripts/reset-link.mts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.96",

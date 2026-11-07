@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { getCurrentUser } from '@/server/session';
 import { SignOutButton } from './sign-out-button';
 
@@ -10,6 +11,9 @@ export async function UserMenu() {
       <span className="hidden max-w-40 truncate text-muted-foreground md:inline" data-testid="user-name">
         {user.name}
       </span>
+      <Link href="/recovery-code" className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
+        Recovery code
+      </Link>
       <SignOutButton />
     </div>
   );

@@ -16,6 +16,8 @@ test('a new user can sign up, lands in the chat, and can sign out', async ({ pag
   await page.getByLabel('Password').fill('e2e-password-123');
   await page.getByRole('button', { name: 'Create account' }).click();
 
+  await expect(page).toHaveURL(/\/recovery-code\?welcome=1$/);
+  await page.getByRole('link', { name: 'Skip for now' }).click();
   await expect(page).toHaveURL(/\/assistant$/);
   await expect(page.getByTestId('user-name')).toHaveText('E2E User');
   await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Chat' })).toBeVisible();
