@@ -1,6 +1,7 @@
 'use client';
 
 import { useChat } from '@ai-sdk/react';
+import { lastAssistantMessageIsCompleteWithApprovalResponses } from 'ai';
 import { ArrowUpIcon, SquareIcon } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -28,21 +29,51 @@ function friendlyError(error: Error): string {
 }
 
 export function AssistantChat() {
-  const { messages, sendMessage, status, stop, error } = useChat<AssistantMessage>();
+  const { messages, sendMessage, status, stop, error, addToolApprovalResponse } = useChat<AssistantMessage>({
+    // After you approve or decline (e.g. confirming experience), the agent continues on its own.
+    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
+  });
   const [input, setInput] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  const prefill = (text: string) => {
+    setInput(text);
+    requestAnimationFrame(() => {
+      const box = inputRef.current;
+      box?.focus();
+      box?.setSelectionRange(text.length, text.length);
+    });
+  };
   const busy = status === 'submitted' || status === 'streaming';
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [messages, status]);
 
+  // A message asked for while the agent is still answering (e.g. a CV uploaded mid-reply) waits here
+  // and is sent as soon as the reply finishes, instead of being dropped.
+  const queued = useRef<string | null>(null);
+  const busyNow = useRef(busy);
+
   const send = (text: string) => {
     const trimmed = text.trim();
-    if (!trimmed || busy) return;
+    if (!trimmed) return;
+    if (busyNow.current) {
+      queued.current = trimmed;
+      return;
+    }
     sendMessage({ text: trimmed });
     setInput('');
   };
+
+  useEffect(() => {
+    busyNow.current = busy;
+    if (busy || !queued.current) return;
+    const text = queued.current;
+    queued.current = null;
+    sendMessage({ text });
+  }, [busy, sendMessage]);
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-4">
@@ -80,7 +111,14 @@ export function AssistantChat() {
                       <RichText text={part.text} />
                     </div>
                   ) : (
-                    <ToolPart key={i} part={part} onAsk={send} busy={busy} />
+                    <ToolPart
+                      key={i}
+                      part={part}
+                      onAsk={send}
+                      onPrefill={prefill}
+                      onApproval={(id, approved) => addToolApprovalResponse({ id, approved })}
+                      busy={busy}
+                    />
                   ),
                 )
               )}
@@ -109,6 +147,7 @@ export function AssistantChat() {
         }}
       >
         <Textarea
+          ref={inputRef}
           aria-label="Message"
           dir="auto"
           value={input}

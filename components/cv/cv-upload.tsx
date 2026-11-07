@@ -18,8 +18,11 @@ const useHydrated = () =>
     () => false,
   );
 
-/** Uploads a PDF to /api/cvs. After success it refreshes the page, or goes to `nextHref` when given. */
-export function CvUpload({ nextHref }: { nextHref?: string }) {
+/**
+ * Uploads a PDF to /api/cvs. After success it calls `onUploaded` when given (e.g. the chat continues),
+ * otherwise goes to `nextHref` or refreshes the page.
+ */
+export function CvUpload({ nextHref, onUploaded }: { nextHref?: string; onUploaded?: () => void }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +47,8 @@ export function CvUpload({ nextHref }: { nextHref?: string }) {
         return;
       }
       toast.success(data.duplicate ? 'You already uploaded this CV.' : 'CV uploaded.');
-      if (nextHref) router.push(nextHref);
+      if (onUploaded) onUploaded();
+      else if (nextHref) router.push(nextHref);
       else router.refresh();
     });
 

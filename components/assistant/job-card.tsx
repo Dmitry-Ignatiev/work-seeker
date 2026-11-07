@@ -1,4 +1,4 @@
-import { ExternalLinkIcon, MapPinIcon } from 'lucide-react';
+import { ExternalLinkIcon, MapPinIcon, WandSparklesIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button, buttonVariants } from '@/components/ui/button';
 import type { JobSummary } from '@/server/services/jobs';
@@ -12,7 +12,17 @@ function postedLabel(iso: string | null): string | null {
   return days < 60 ? `${days} days ago` : null;
 }
 
-export function JobCard({ job, onDetails, disabled }: { job: JobSummary; onDetails?: () => void; disabled?: boolean }) {
+export function JobCard({
+  job,
+  onDetails,
+  onTailor,
+  disabled,
+}: {
+  job: JobSummary;
+  onDetails?: () => void;
+  onTailor?: () => void;
+  disabled?: boolean;
+}) {
   const posted = postedLabel(job.postedAt);
   return (
     <article className="flex flex-col gap-2 rounded-xl border bg-card p-4 text-card-foreground" aria-label={job.title}>
@@ -37,7 +47,12 @@ export function JobCard({ job, onDetails, disabled }: { job: JobSummary; onDetai
           {job.snippet}
         </p>
       )}
-      <div className="mt-auto flex gap-2 pt-1">
+      <div className="mt-auto flex flex-wrap gap-2 pt-1">
+        {onTailor && (
+          <Button size="sm" onClick={onTailor} disabled={disabled}>
+            <WandSparklesIcon aria-hidden /> Tailor my CV
+          </Button>
+        )}
         {job.source === 'Demo listing' ? (
           // Offline-mode listings are made up: no dead link to click.
           <span className="self-center text-xs text-muted-foreground">Demo listing, no real posting</span>
