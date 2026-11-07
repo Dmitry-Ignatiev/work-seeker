@@ -70,7 +70,6 @@ export function SignInForm({ emailPassword, google, github }: Props) {
 
       {emailPassword && (
         <form action={submit} className="flex flex-col gap-4 rounded-xl border p-4">
-          <p className="text-xs text-muted-foreground">Email sign-in is for local development and tests only.</p>
           <FieldGroup>
             {mode === 'sign-up' && (
               <Field>

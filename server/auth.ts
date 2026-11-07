@@ -14,7 +14,8 @@ const github = authOptions.github
 
 export const auth = betterAuth({
   database: prismaAdapter(db, { provider: 'postgresql' }),
-  // Production signs in with OAuth only: email flows would need a paid sending domain.
+  // Email + password is the main way in. No email verification or password reset yet: those need an
+  // email-sending service (Resend Free needs a verified domain). Rate limiting below protects sign-in.
   emailAndPassword: { enabled: authOptions.emailPassword, minPasswordLength: 10 },
   socialProviders: { ...(google && { google }), ...(github && { github }) },
   // E2E creates many accounts from one IP within seconds; real traffic is always rate limited.

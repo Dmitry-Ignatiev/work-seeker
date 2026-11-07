@@ -2,7 +2,7 @@
 
 **Goal:** a chat where you describe the **high-tech** job you want. The agent finds matching jobs (Israel + remote). You upload your CV in the chat, and the agent rewrites it so it uses that job's keywords, but **only where your real experience supports them**. You download the tailored CV as an editable DOCX.
 
-**Users:** high-tech job seekers in Israel (any tech role: backend, frontend, QA, DevOps, data, AI/ML, product, UX, IT, cyber, hardware…). Sign-in with GitHub (Google too when configured).
+**Users:** high-tech job seekers in Israel (any tech role: backend, frontend, QA, DevOps, data, AI/ML, product, UX, IT, cyber, hardware…). Sign-in with email and password (GitHub and Google too when configured).
 
 **Demo Day (GoCode Project 3, Wed 11.11) definition of done:** live link, at least 2 tools that do real actions, streaming, 10 eval cases, a README with GIF, diagram and run instructions, and a 3-minute demo.
 

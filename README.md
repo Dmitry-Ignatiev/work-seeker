@@ -22,8 +22,8 @@ npm run db:seed         # skills taxonomy
 npm run dev
 ```
 
-Open http://localhost:3000. Outside production you can sign up with email and password. Production uses
-Google and GitHub sign-in only (see `.env.example`).
+Open http://localhost:3000 and sign up with email and password. Google and GitHub sign-in are optional
+(see `.env.example`).
 
 ## Scripts
 
