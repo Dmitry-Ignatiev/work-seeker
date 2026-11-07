@@ -1,0 +1,5 @@
+# The Vercel CLI always skips folders named "CVS" (an old version-control system) and matches without
+# case, so it silently dropped our `cvs` routes (app/(app)/cvs, app/api/cvs) from every upload.
+# These lines put them back. Check the build's route table lists /cvs and /api/cvs after a deploy.
+!cvs
+!cvs/**
