@@ -4,7 +4,19 @@
     {
       "name": "work-seeker",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
+      "port": 3000
+    },
+    {
+      "name": "work-seeker-offline",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev:offline"
+      ],
       "port": 3000
     }
   ]
