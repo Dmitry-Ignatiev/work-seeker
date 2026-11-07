@@ -41,12 +41,13 @@ const kw = (keyword: string, strict = true, importance: 'MUST' | 'NICE' = 'MUST'
 const SYNONYMS: Record<string, string[]> = { kubernetes: ['Kubernetes', 'k8s'], k8s: ['Kubernetes', 'k8s'] };
 const TECH = ['Kubernetes', 'Rust', 'Terraform', 'Python', 'Node.js', 'PostgreSQL', 'AWS'];
 
-function run(output: Partial<TailorOutput>, keywords: JobKeyword[], confirmed: string[] = []) {
+function run(output: Partial<TailorOutput>, keywords: JobKeyword[], confirmed: string[] = [], extra: Partial<GuardInput> = {}) {
   const input: GuardInput = {
     cvText: CV_TEXT,
     structure: STRUCTURE,
     keywords,
     confirmed,
+    ...extra,
     synonyms: term => SYNONYMS[term.toLowerCase()] ?? [term],
     skillsIn: text =>
       new Set(TECH.filter(t => [t, ...(SYNONYMS[t.toLowerCase()] ?? [])].some(s => containsTerm(text, s)))),
@@ -58,6 +59,37 @@ function run(output: Partial<TailorOutput>, keywords: JobKeyword[], confirmed: s
 const edit = (bulletId: string, text: string, evidence: string[] = []) => ({ bulletId, text, evidence });
 
 describe('truthfulness guard', () => {
+  it('rejects an edit that no longer fits its lines, so the CV keeps its page count', () => {
+    const bullet = 'Ran our services on k8s and wrote automated tests for every release.';
+    const longer = 'Ran our services on Kubernetes and wrote automated tests for every release.';
+    const tight = run({ edits: [edit('b0.0.1', longer)] }, [kw('Kubernetes')], [], { limits: new Map([['b0.0.1', bullet.length]]) });
+    expect(tight.changes).toEqual([]);
+    expect(tight.rejected[0].reason).toBe('it would no longer fit its lines, and your CV would get longer');
+    const roomy = run({ edits: [edit('b0.0.1', longer)] }, [kw('Kubernetes')], [], { limits: new Map([['b0.0.1', 100]]) });
+    expect(roomy.changes).toHaveLength(1);
+  });
+
+  it('rejects a summary rewrite that drops what the candidate wrote, and accepts one that only adds', () => {
+    const summary = 'Backend developer experienced in database-driven applications and automated testing.';
+    const structure = { ...STRUCTURE, summary };
+    const dropped = run(
+      { summary: { text: 'Backend developer building Node.js APIs.', evidence: [] } },
+      [],
+      [],
+      { structure, cvText: `${CV_TEXT}\n${summary}` },
+    );
+    expect(dropped.changes).toEqual([]);
+    expect(dropped.rejected[0].reason).toMatch(/^it would remove "experienced", "database", "driven" from your summary$/);
+
+    const added = run(
+      { summary: { text: 'Backend developer experienced in database-driven Node.js applications and automated testing.', evidence: [] } },
+      [kw('Node.js')],
+      [],
+      { structure, cvText: `${CV_TEXT}\n${summary}` },
+    );
+    expect(added.changes).toHaveLength(1);
+  });
+
   it('rejects a technology the CV never mentions', () => {
     const r = run({ edits: [edit('b0.0.2', 'Mentored two junior developers on Terraform.')] }, [kw('Terraform')]);
     expect(r.changes).toEqual([]);

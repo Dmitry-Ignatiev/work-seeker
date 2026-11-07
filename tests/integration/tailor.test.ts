@@ -4,9 +4,11 @@ import { db } from '@/server/db';
 import { NotFoundError } from '@/server/errors';
 import { createCv } from '@/server/services/cv';
 import { addJobFromText } from '@/server/services/jobs';
-import { confirmExperience, getTailoredCvForDownload, tailorCvForJob } from '@/server/services/tailor';
+import { confirmExperience, getTailoredCvForDownload, renderTailoredCv, tailorCvForJob } from '@/server/services/tailor';
 import { buildCvDocx } from '@/server/tailor/docx';
-import { SAMPLE_CV_LINES } from '../support/make-pdf';
+import JSZip from 'jszip';
+import { extractPdfText } from '@/server/cv/pdf';
+import { DESIGNED_CV_LINES, makePdf, SAMPLE_CV_LINES } from '../support/make-pdf';
 import { createTestUser, resetDatabase } from '../support/db';
 
 // AI_MOCK=1: the default offline responders extract known technologies, split the CV into bullets, and
@@ -119,6 +121,34 @@ describe('CV tailoring', () => {
     const buffer = await buildCvDocx(cv);
     expect(buffer.subarray(0, 2).toString()).toBe('PK'); // a .docx is a zip
     expect(buffer.length).toBeGreaterThan(3_000);
+  });
+
+  it('rebuilds the DOCX from the uploaded PDF’s own layout, with the accepted edits in place', async () => {
+    const user = await createTestUser({ name: 'Dana Levi' });
+    const pdf = await extractPdfText(makePdf([DESIGNED_CV_LINES]));
+    expect(pdf.layout).not.toBeNull();
+    await createCv(user.id, { fileName: 'cv.pdf', sizeBytes: 1000, pageCount: 1, text: pdf.text, links: pdf.links, layout: pdf.layout });
+    const added = await addJobFromText(user.id, { text: JOB_TEXT, title: 'Senior Backend Engineer', company: 'Acme Robotics' });
+    if (added.status !== 'OK') throw new Error(added.status);
+
+    const result = await tailorCvForJob(user.id, added.job.id);
+    if (result.status !== 'OK') throw new Error(result.status);
+    expect(result.layout).toBe('ORIGINAL');
+    expect(result.changes.length).toBeGreaterThan(0);
+
+    const { buffer, usedLayout } = await renderTailoredCv(user.id, result.id);
+    expect(usedLayout).toBe(true);
+    const xml = await (await JSZip.loadAsync(buffer)).file('word/document.xml')!.async('string');
+    for (const change of result.changes) expect(xml).toContain(change.after.replace(/^[-•]\s+/, '').slice(0, 40));
+    expect(xml).toContain('<w:jc w:val="center"/>'); // the centered name stays centered
+  });
+
+  it('uses the template for a CV uploaded before layouts were read', async () => {
+    const { user, jobId } = await userWithCvAndJob();
+    const result = await tailorCvForJob(user.id, jobId);
+    if (result.status !== 'OK') throw new Error(result.status);
+    expect(result.layout).toBe('TEMPLATE');
+    expect((await renderTailoredCv(user.id, result.id)).usedLayout).toBe(false);
   });
 
   it('puts the links from the uploaded PDF back in the DOCX header, and re-uploading adds them to an older CV', async () => {

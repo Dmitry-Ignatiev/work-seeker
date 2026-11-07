@@ -1,6 +1,7 @@
 import 'server-only';
 import { createHash } from 'node:crypto';
 import type { Prisma } from '@/generated/prisma/client';
+import type { CvLayout } from '@/server/cv/layout';
 import type { CvLink } from '@/server/cv/links';
 import { db } from '@/server/db';
 import { isUniqueViolation, NotFoundError } from '@/server/errors';
@@ -25,6 +26,9 @@ export interface NewCv {
   text: string;
   /** Links read from the PDF (server/cv/links.ts). */
   links?: CvLink[];
+  /** Page layout read from the PDF (server/cv/layout.ts), and why it's missing when it is. */
+  layout?: CvLayout | null;
+  layoutNote?: string;
 }
 
 const sha256 = (text: string) => createHash('sha256').update(text).digest('hex');
@@ -72,10 +76,14 @@ export async function createCv(userId: string, input: NewCv): Promise<{ id: stri
     db.cv.findUnique({ where: { userId_contentHash: { userId, contentHash } }, select: { id: true } });
 
   const links = input.links?.length ? (input.links as unknown as Prisma.InputJsonValue) : undefined;
+  const layout = input.layout ? (input.layout as unknown as Prisma.InputJsonValue) : undefined;
+  const layoutNote = input.layoutNote ?? null;
   const existing = await findExisting();
   if (existing) {
-    // Same text uploaded again: refresh its links (CVs uploaded before links were read had none).
-    if (links) await db.cv.update({ where: { id: existing.id }, data: { links } });
+    // Same text uploaded again: refresh what's read from the file (CVs uploaded earlier had no links or layout).
+    if (links || layout || input.layoutNote) {
+      await db.cv.update({ where: { id: existing.id }, data: { ...(links && { links }), ...(layout && { layout }), layoutNote } });
+    }
     return { id: existing.id, duplicate: true };
   }
 
@@ -96,6 +104,8 @@ export async function createCv(userId: string, input: NewCv): Promise<{ id: stri
           contentHash,
           textContent: input.text,
           links,
+          layout,
+          layoutNote,
           status: 'PARSED',
           isDefault: !hasDefault,
         },

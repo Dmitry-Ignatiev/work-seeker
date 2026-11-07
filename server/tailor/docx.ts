@@ -35,7 +35,7 @@ export interface DocxInput {
 }
 
 /** Puts the real name back where redaction left "[CANDIDATE]"; drops other redaction markers. */
-function restore(text: string, name: string): string {
+export function restorePlaceholders(text: string, name: string): string {
   return text.replace(/\[CANDIDATE\]/g, name).replace(/\s*\[(EMAIL|PHONE|URL)\]\s*/g, ' ').trim();
 }
 
@@ -55,7 +55,7 @@ export async function buildCvDocx({ name, contact, links = [], structure }: Docx
   type RunOptions = { bold?: boolean; italics?: boolean; size?: number; color?: string; underline?: boolean };
   const text = (value: string, opts: RunOptions = {}) =>
     new TextRun({
-      text: restore(value, name),
+      text: restorePlaceholders(value, name),
       rightToLeft: rtl,
       bold: opts.bold,
       italics: opts.italics,
@@ -100,7 +100,7 @@ export async function buildCvDocx({ name, contact, links = [], structure }: Docx
       if (entry.dates) {
         // Left-to-right: dates flush right on the same line. Right-to-left: after a separator.
         if (rtl) runs.push(text(`${runs.length > 0 ? '  |  ' : ''}${entry.dates}`, { color: MUTED }));
-        else runs.push(new TextRun({ children: [new Tab(), restore(entry.dates, name)], color: MUTED, size: 20 }));
+        else runs.push(new TextRun({ children: [new Tab(), restorePlaceholders(entry.dates, name)], color: MUTED, size: 20 }));
       }
       if (runs.length > 0) {
         children.push(

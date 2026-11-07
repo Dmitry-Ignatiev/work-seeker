@@ -1,8 +1,11 @@
 import 'server-only';
 import { redactPii } from '@/server/ai/redact';
 import { extractJobKeywords, proposeTailoring, STRUCTURE_PROMPT_VERSION, structureCv, TAILOR_PROMPT_VERSION } from '@/server/ai/tailoring';
+import { parseStoredLayout } from '@/server/cv/layout';
 import { collectLinks, headerLinks, parseStoredLinks } from '@/server/cv/links';
-import type { ContactItem } from '@/server/tailor/docx';
+import { buildCvDocx, restorePlaceholders, type ContactItem } from '@/server/tailor/docx';
+import { lengthLimits } from '@/server/tailor/fit';
+import { buildLayoutDocx } from '@/server/tailor/layout-docx';
 import { db } from '@/server/db';
 import { NotFoundError } from '@/server/errors';
 import { scanSkills } from '@/server/matching/cv-skills';
@@ -97,7 +100,18 @@ async function getCvForTailoring(userId: string) {
     structure = buildStructure(redacted.text, await structureCv(userId, redacted.text));
     await db.cv.update({ where: { id: cv.id }, data: { structure: structure as object, structureVersion: STRUCTURE_PROMPT_VERSION } });
   }
-  return { cv, redactedText: redacted.text, structure };
+  return { cv, userName: user.name, redactedText: redacted.text, structure };
+}
+
+/** How many characters each bullet and the summary may have so the CV keeps its page count (none without a layout). */
+function limitsFor(cv: { layout: unknown }, structure: CvStructure, userName: string): Map<string, number> {
+  const layout = parseStoredLayout(cv.layout);
+  if (!layout) return new Map();
+  const texts = [
+    ...(structure.summary ? [{ id: SUMMARY_ID, text: structure.summary }] : []),
+    ...structure.sections.flatMap(s => s.entries.flatMap(e => e.bullets.map(b => ({ id: b.id, text: b.text })))),
+  ];
+  return lengthLimits(layout, texts, text => redactPii(text, { names: [userName] }).text);
 }
 
 // ───────────────────────── Tailoring ─────────────────────────
@@ -115,6 +129,8 @@ export interface TailorResult {
   rejected: { before: string; proposed: string; reason: string }[];
   missing: string[];
   downloadUrl: string;
+  /** How the DOCX looks: the user's own layout, or the template (and why). */
+  layout: 'ORIGINAL' | 'MULTI_COLUMN' | 'TEMPLATE';
 }
 
 export type TailorOutcome =
@@ -130,7 +146,7 @@ export type TailorOutcome =
 export async function tailorCvForJob(userId: string, jobId: string): Promise<TailorOutcome> {
   const cvData = await getCvForTailoring(userId);
   if (!cvData) return { status: 'NEEDS_CV' };
-  const { cv, redactedText, structure } = cvData;
+  const { cv, userName, redactedText, structure } = cvData;
   if (bulletCount(structure) === 0) {
     return { status: 'CV_UNREADABLE', reason: "I couldn't find experience bullets in your CV. Try a PDF exported from Word or Google Docs." };
   }
@@ -147,6 +163,7 @@ export async function tailorCvForJob(userId: string, jobId: string): Promise<Tai
   const tax = await taxonomy();
   const confirmed = await db.confirmedExperience.findMany({ where: { userId }, select: { keyword: true, detail: true } });
   const inCv = (term: string) => [term, ...tax.synonyms(term)].some(t => containsTerm(redactedText, t));
+  const limits = limitsFor(cv, structure, userName);
 
   const output = await proposeTailoring(userId, {
     job: { title: job.title, company: job.company },
@@ -160,9 +177,15 @@ export async function tailorCvForJob(userId: string, jobId: string): Promise<Tai
     cv: {
       headline: structure.headline,
       summary: structure.summary,
+      summaryMaxChars: limits.get(SUMMARY_ID),
       bullets: structure.sections.flatMap(section =>
         section.entries.flatMap(entry =>
-          entry.bullets.map(b => ({ id: b.id, text: b.text, role: [entry.title, entry.organization].filter(Boolean).join(' @ ') })),
+          entry.bullets.map(b => ({
+            id: b.id,
+            text: b.text,
+            role: [entry.title, entry.organization].filter(Boolean).join(' @ '),
+            maxChars: limits.get(b.id),
+          })),
         ),
       ),
     },
@@ -176,6 +199,7 @@ export async function tailorCvForJob(userId: string, jobId: string): Promise<Tai
     synonyms: tax.synonyms,
     skillsIn: tax.skillsIn,
     ambiguous: tax.ambiguous,
+    limits,
     output,
   });
 
@@ -209,6 +233,7 @@ export async function tailorCvForJob(userId: string, jobId: string): Promise<Tai
     rejected: result.rejected.map(({ before, proposed, reason }) => ({ before, proposed, reason })),
     missing: result.missing,
     downloadUrl: `/api/tailored-cvs/${saved.id}/docx`,
+    layout: parseStoredLayout(cv.layout) ? 'ORIGINAL' : cv.layoutNote === 'MULTI_COLUMN' ? 'MULTI_COLUMN' : 'TEMPLATE',
   };
 }
 
@@ -218,8 +243,9 @@ export async function getTailoredCvForDownload(userId: string, id: string) {
     where: { id, userId },
     select: {
       content: true,
+      changes: true,
       job: { select: { title: true, company: true } },
-      cv: { select: { textContent: true, links: true } },
+      cv: { select: { textContent: true, links: true, layout: true, structure: true } },
       user: { select: { name: true } },
     },
   });
@@ -234,13 +260,41 @@ export async function getTailoredCvForDownload(userId: string, id: string) {
     ...(phones[0] ? [{ text: phones[0] }] : []),
     ...headerLinks(links).map(l => ({ text: l.label, url: l.url })),
   ];
+  const structure = row.content as unknown as CvStructure;
+  const originalSkills = (row.cv.structure as CvStructure | null)?.skills ?? [];
   return {
     name: row.user.name,
     contact,
     links,
-    structure: row.content as unknown as CvStructure,
+    structure,
+    /** The original page layout, when the PDF's could be read. */
+    layout: parseStoredLayout(row.cv.layout),
+    changes: (row.changes as unknown as TailorChange[]).map(c => ({ before: c.before, after: c.after })),
+    skills: originalSkills,
+    addedSkills: structure.skills.filter(s => !originalSkills.includes(s)),
     fileName: `${row.user.name} - CV for ${row.job.title} at ${row.job.company}`.replace(/[\\/:*?"<>|]+/g, ' ').slice(0, 120),
   };
+}
+
+/**
+ * The tailored CV as a DOCX: rebuilt from the user's own layout when the PDF's was readable, so it keeps their
+ * design, wording and page count; otherwise the clean template. An edit that can't be placed in the layout
+ * means the template is used, so no accepted change is ever lost.
+ */
+export async function renderTailoredCv(userId: string, id: string): Promise<{ buffer: Buffer; fileName: string; usedLayout: boolean }> {
+  const cv = await getTailoredCvForDownload(userId, id);
+  if (cv.layout) {
+    const { buffer, unplaced } = await buildLayoutDocx({
+      layout: cv.layout,
+      edits: cv.changes,
+      addedSkills: cv.addedSkills,
+      skills: cv.skills,
+      normalize: text => redactPii(text, { names: [cv.name] }).text,
+      restore: text => restorePlaceholders(text, cv.name),
+    });
+    if (unplaced === 0) return { buffer, fileName: cv.fileName, usedLayout: true };
+  }
+  return { buffer: await buildCvDocx(cv), fileName: cv.fileName, usedLayout: false };
 }
 
 /** Records experience the user confirmed in chat (after clicking approve), so tailoring may use it. */

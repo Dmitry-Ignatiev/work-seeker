@@ -383,6 +383,10 @@ model Cv {
   structureVersion String?
   /// Links read from the PDF (url, kind, label, anchor text); put back into tailored DOCX files by code.
   links            Json?
+  /// Page layout read from the PDF (server/cv/layout.ts): tailored DOCX files keep the user's design and page count.
+  layout           Json?
+  /// Why there's no layout, when the user should know (e.g. MULTI_COLUMN: rebuilt in one column).
+  layoutNote       String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 

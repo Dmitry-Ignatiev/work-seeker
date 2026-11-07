@@ -1,3 +1,4 @@
+import { droppedWords } from './fit';
 import { containsTerm, containsTermExact, isQuoteIn, keywordKey, numbersIn } from './text-match';
 import type { CvStructure, JobKeyword, TailorChange, TailorOutput, TailorRejection } from './types';
 
@@ -11,7 +12,9 @@ import type { CvStructure, JobKeyword, TailorChange, TailorOutput, TailorRejecti
  *     or confirmed by the user;
  *     descriptive kinds (responsibility, domain, soft skill): as above, or supported by a verbatim CV quote,
  *     in which case the edit is flagged "reworded, please check";
- * - it mentions no other technology the CV doesn't have.
+ * - it mentions no other technology the CV doesn't have;
+ * - it still fits the lines the text takes in the original layout (the CV keeps its page count);
+ * - for the summary: it removes none of the original's meaningful words.
  * A failing edit is dropped whole: the original bullet stays.
  */
 
@@ -28,6 +31,8 @@ export interface GuardInput {
   skillsIn: (text: string) => Set<string>;
   /** Terms that are also everyday words ("Go"): matched case-sensitively. */
   ambiguous?: (term: string) => boolean;
+  /** Most characters a bullet (or the summary) may have so the CV keeps its page count (server/tailor/fit.ts). */
+  limits?: Map<string, number>;
   output: TailorOutput;
 }
 
@@ -80,6 +85,14 @@ export function applyGuard(input: GuardInput): GuardResult {
   const check = (bulletId: string, before: string, after: string, evidence: string[]): string | TailorChange => {
     const proposed = after.trim();
     if (proposed.length > Math.max(before.length * 2, before.length + 250)) return 'the rewrite is much longer than the original';
+    const limit = input.limits?.get(bulletId);
+    if (limit !== undefined && proposed.length > limit) return 'it would no longer fit its lines, and your CV would get longer';
+
+    // The summary may gain the job's terms, but never lose what you wrote.
+    if (bulletId === SUMMARY_ID) {
+      const lost = droppedWords(before, proposed);
+      if (lost.length > 0) return `it would remove ${lost.slice(0, 3).map(w => `"${w}"`).join(', ')} from your summary`;
+    }
 
     const pool = bulletId === SUMMARY_ID ? numbersIn(cvText) : numbersIn(before);
     const newNumber = [...numbersIn(proposed)].find(n => !pool.has(n));

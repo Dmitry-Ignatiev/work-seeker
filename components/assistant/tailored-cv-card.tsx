@@ -42,6 +42,13 @@ export function TailoredCvCard({ result, onHaveSkill }: { result: TailorResult; 
           <p className="text-sm text-muted-foreground" dir="auto">
             {result.job.company} · from your CV “{result.cvLabel}”
           </p>
+          <p className="text-xs text-muted-foreground" data-testid="layout-note">
+            {result.layout === 'ORIGINAL'
+              ? 'Same design, wording and page count as your PDF; only the changes below.'
+              : result.layout === 'MULTI_COLUMN'
+                ? 'Your PDF has two columns, so the DOCX is a clean single-column version.'
+                : 'Your PDF’s design couldn’t be read reliably, so the DOCX uses a clean template. Upload it again to retry.'}
+          </p>
         </div>
         <a href={result.downloadUrl} download className={buttonVariants({ size: 'sm' })}>
           <DownloadIcon aria-hidden /> Download DOCX

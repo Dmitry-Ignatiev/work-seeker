@@ -30,8 +30,8 @@ export async function POST(request: Request) {
   if (file.size > CV_MAX_BYTES) return error('The file is larger than 4 MB.', 413);
 
   try {
-    const { text, pageCount, links } = await extractPdfText(new Uint8Array(await file.arrayBuffer()));
-    const result = await createCv(user.id, { fileName: file.name, sizeBytes: file.size, pageCount, text, links });
+    const { text, pageCount, links, layout, layoutNote } = await extractPdfText(new Uint8Array(await file.arrayBuffer()));
+    const result = await createCv(user.id, { fileName: file.name, sizeBytes: file.size, pageCount, text, links, layout, layoutNote });
     return NextResponse.json(result, { status: result.duplicate ? 200 : 201 });
   } catch (e) {
     if (e instanceof CvUploadError) return error(e.message, 400);

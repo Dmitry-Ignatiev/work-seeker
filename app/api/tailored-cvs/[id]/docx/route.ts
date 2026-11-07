@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { NotFoundError } from '@/server/errors';
-import { getTailoredCvForDownload } from '@/server/services/tailor';
-import { buildCvDocx } from '@/server/tailor/docx';
+import { renderTailoredCv } from '@/server/services/tailor';
 import { getCurrentUser } from '@/server/session';
 
 /** Downloads a tailored CV as DOCX. Only its owner can; anyone else gets the same 404 as a missing id. */
@@ -11,13 +10,12 @@ export async function GET(_request: Request, ctx: RouteContext<'/api/tailored-cv
   const { id } = await ctx.params;
 
   try {
-    const cv = await getTailoredCvForDownload(user.id, id);
-    const buffer = await buildCvDocx(cv);
-    const ascii = cv.fileName.replace(/[^\x20-\x7e]/g, '').trim() || 'Tailored CV';
+    const { buffer, fileName } = await renderTailoredCv(user.id, id);
+    const ascii = fileName.replace(/[^\x20-\x7e]/g, '').trim() || 'Tailored CV';
     return new Response(new Uint8Array(buffer), {
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'Content-Disposition': `attachment; filename="${ascii}.docx"; filename*=UTF-8''${encodeURIComponent(cv.fileName)}.docx`,
+        'Content-Disposition': `attachment; filename="${ascii}.docx"; filename*=UTF-8''${encodeURIComponent(fileName)}.docx`,
         'Cache-Control': 'private, no-store',
       },
     });
