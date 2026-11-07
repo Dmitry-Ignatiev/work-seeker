@@ -19,7 +19,7 @@ export const config = {
     '/jobs/:path*',
     '/applications/:path*',
     '/profile/:path*',
-    '/cvs/:path*',
+    '/my-cvs/:path*',
     '/searches/:path*',
     '/assistant/:path*',
     '/recovery-code/:path*',

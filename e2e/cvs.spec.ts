@@ -4,7 +4,7 @@ import { makePdf, SAMPLE_CV_LINES } from '../tests/support/make-pdf';
 
 test('upload a CV, see its skills, then delete it', async ({ page }) => {
   await signUp(page, 'CV Tester', 'cv');
-  await page.goto('/cvs');
+  await page.goto('/my-cvs');
 
   const input = page.getByLabel('Upload your CV (PDF)');
   await expect(input).toBeEnabled(); // enabled once hydrated
@@ -14,7 +14,7 @@ test('upload a CV, see its skills, then delete it', async ({ page }) => {
     buffer: Buffer.from(makePdf([SAMPLE_CV_LINES])),
   });
 
-  await expect(page).toHaveURL(/\/cvs$/);
+  await expect(page).toHaveURL(/\/my-cvs$/);
   const card = page.getByRole('listitem').filter({ hasText: 'Dana Levi CV' });
   await expect(card).toBeVisible();
   await expect(card.getByText('Default')).toBeVisible();
@@ -30,7 +30,7 @@ test('upload a CV, see its skills, then delete it', async ({ page }) => {
 
 test('a file that is not a PDF is rejected with a clear message', async ({ page }) => {
   await signUp(page, 'CV Tester', 'cv');
-  await page.goto('/cvs');
+  await page.goto('/my-cvs');
   const input = page.getByLabel('Upload your CV (PDF)');
   await expect(input).toBeEnabled(); // enabled once hydrated
   await input.setInputFiles({

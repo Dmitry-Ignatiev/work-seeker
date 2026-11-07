@@ -81,7 +81,7 @@ flowchart LR
   subgraph Vercel["Vercel - Node.js Fluid Compute"]
     Proxy["proxy.ts - optimistic auth redirect"]
     SA["Server Actions"]
-    RH["Route Handlers: /api/chat, /api/auth, /api/cvs/*, /api/cron/*"]
+    RH["Route Handlers: /api/chat, /api/auth, /api/cv-uploads/*, /api/cron/*"]
     SVC["server/services - single source of business logic + authz"]
     PIPE["Pipeline steps: ingest, extract, match, explain, recommend"]
     AG["Assistant ToolLoopAgent"]
@@ -338,7 +338,7 @@ No dependencies are added for HTML parsing. The regex-based JSON-LD extraction a
 | `rerunMatchAction(jobId)` | Rerun after a profile change |
 | `saveJobAction(jobId, cvId?)` / `unsaveJobAction` | Application SAVED |
 | `updateProfileAction`, `upsertProfileItemAction`, `deleteProfileItemAction`, `confirmImportedItemsAction` | Profile |
-| `renameCvAction`, `setDefaultCvAction`, `deleteCvAction` | CVs (the upload itself goes through `/api/cvs`) |
+| `renameCvAction`, `setDefaultCvAction`, `deleteCvAction` | CVs (the upload itself goes through `/api/cv-uploads`) |
 | `updateApplicationAction`, `addApplicationEventAction`, `upsertContactAction` | Tracker |
 | `createSavedSearchAction`, `toggleSavedSearchAction` | Automation |
 | `markNotificationsReadAction` | Notifications |
@@ -349,7 +349,7 @@ No dependencies are added for HTML parsing. The regex-based JSON-LD extraction a
 | --- | --- | --- | --- |
 | `/api/auth/[...all]` | GET, POST | Better Auth handler | public |
 | `/api/chat` | POST | Assistant stream (`createAgentUIStreamResponse`) | session |
-| `/api/cvs` | POST | Multipart PDF upload (≤ 4 MB, under the 4.5 MB body limit; magic bytes `%PDF` checked). Parsed in memory with `unpdf`, the text is saved, the file is discarded | session |
+| `/api/cv-uploads` | POST | Multipart PDF upload (≤ 4 MB, under the 4.5 MB body limit; magic bytes `%PDF` checked). Parsed in memory with `unpdf`, the text is saved, the file is discarded | session |
 | `/api/cron/daily` | GET | One daily job (Hobby limit): due SavedSearches in batches, then FOLLOW_UP_DUE notifications, then pruning of old closed jobs | `Authorization: Bearer ${CRON_SECRET}` |
 
 ### 6.3 Pages (`app/`)
@@ -362,7 +362,7 @@ No dependencies are added for HTML parsing. The regex-based JSON-LD extraction a
 | `/(app)/jobs/[jobId]` | **Critical-path result page** | `JobHeader`, `RequirementList`, `ScoreBreakdown`, `MatchRequirementRow` (RULE/AI badge plus evidence), `GapList`, `CvRecommendationCard`, `SuggestionList`, `SaveJobButton` |
 | `/(app)/jobs` | Discovered and saved jobs, filters | `JobTable`, `JobFilters` |
 | `/(app)/profile` | Profile fields, items, skills | `ProfileForm`, `ProfileItemEditor`, `SkillPicker` |
-| `/(app)/cvs` | CV list, default flag, delete | `CvList` |
+| `/(app)/my-cvs` | CV list, default flag, delete | `CvList` |
 | `/(app)/applications` | Kanban by status | `ApplicationBoard`, `ApplicationCard` |
 | `/(app)/applications/[id]` | Timeline, contacts, follow-up | `ApplicationTimeline`, `ContactList` |
 | `/(app)/searches` | Saved searches, run history | `SavedSearchForm`, `SearchRunList` |
@@ -378,7 +378,7 @@ shadcn/ui components to add: button, card, input, textarea, tabs, badge, dialog,
 - **Authorization lives in services.** Every service function takes `userId` and scopes every query by it. `proxy.ts` is UX only. IDOR tests cover every service.
 - Server-only modules import `server-only`.
 - Zod validates every action and route input.
-- The cron route checks `CRON_SECRET`. Only `/api/cvs` accepts uploads: PDF magic bytes, ≤ 4 MB, ≤ 20 pages, parse timeout.
+- The cron route checks `CRON_SECRET`. Only `/api/cv-uploads` accepts uploads: PDF magic bytes, ≤ 4 MB, ≤ 20 pages, parse timeout.
 - Better Auth: secure cookies, rate limiting enabled. Production uses Google + GitHub OAuth only. Email+password is behind `NODE_ENV !== 'production'`.
 
 ### 7.2 Cost controls
@@ -418,7 +418,7 @@ app/
   (app)/applications/page.tsx, [id]/page.tsx
   api/auth/[...all]/route.ts
   api/chat/route.ts
-  api/cvs/route.ts
+  api/cv-uploads/route.ts
   api/cron/daily/route.ts
 components/
   ui/                              # shadcn
@@ -491,7 +491,7 @@ flowchart LR
 | # | Task | Acceptance |
 | --- | --- | --- |
 | 1.1 | Profile service + actions + `/profile` page (fields, ProfileItem CRUD, SkillPicker using aliases). Bump `version` on every change | Integration: user A can't read or modify user B's items |
-| 1.2 | CV upload: `/api/cvs` (multipart, PDF magic bytes, ≤ 4 MB, ≤ 20 pages) → `unpdf` in memory → store text + contentHash, discard the file. List, rename, set default, delete | E2E: upload fixture PDF → listed. Delete → gone. Unit: non-PDF and oversize files rejected. No file bytes are persisted anywhere |
+| 1.2 | CV upload: `/api/cv-uploads` (multipart, PDF magic bytes, ≤ 4 MB, ≤ 20 pages) → `unpdf` in memory → store text + contentHash, discard the file. List, rename, set default, delete | E2E: upload fixture PDF → listed. Delete → gone. Unit: non-PDF and oversize files rejected. No file bytes are persisted anywhere |
 | 1.3 | CvSkill alias scan (deterministic) | Unit: fixture CV → expected skill set |
 | 1.4 | `parseCv` (Haiku, redacted text, quotes validated) → ProfileItem drafts `confirmed=false` → `/onboarding` review screen to edit and confirm | Mocked: drafts appear unconfirmed, and only confirmed items count. Real-model eval on 3 fixture CVs: no item without a valid quote |
 

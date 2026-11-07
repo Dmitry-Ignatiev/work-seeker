@@ -19,7 +19,7 @@ const useHydrated = () =>
   );
 
 /**
- * Uploads a PDF to /api/cvs. After success it calls `onUploaded` when given (e.g. the chat continues),
+ * Uploads a PDF to /api/cv-uploads. After success it calls `onUploaded` when given (e.g. the chat continues),
  * otherwise goes to `nextHref` or refreshes the page.
  */
 export function CvUpload({ nextHref, onUploaded }: { nextHref?: string; onUploaded?: () => void }) {
@@ -39,7 +39,7 @@ export function CvUpload({ nextHref, onUploaded }: { nextHref?: string; onUpload
       }
       const body = new FormData();
       body.append('file', file);
-      const response = await fetch('/api/cvs', { method: 'POST', body });
+      const response = await fetch('/api/cv-uploads', { method: 'POST', body });
       const data = (await response.json().catch(() => ({}))) as { error?: string; duplicate?: boolean };
       if (inputRef.current) inputRef.current.value = '';
       if (!response.ok) {

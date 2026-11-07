@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 
 export const NAV_ITEMS = [
   { href: '/assistant', label: 'Chat', icon: MessageSquareIcon },
-  { href: '/cvs', label: 'CVs', icon: FileTextIcon },
+  { href: '/my-cvs', label: 'CVs', icon: FileTextIcon },
 ] as const;
 
 export function AppNav() {
