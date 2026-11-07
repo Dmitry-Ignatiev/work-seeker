@@ -11,7 +11,9 @@ export default defineConfig({
     seed: 'tsx prisma/seed.ts',
   },
   datasource: {
-    url: process.env.DATABASE_URL,
+    // Migrations need a direct connection. Neon (Vercel Marketplace) provides DATABASE_URL_UNPOOLED for that;
+    // the app itself uses the pooled DATABASE_URL. Locally there is only DATABASE_URL.
+    url: process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL,
     // `prisma migrate dev` needs a scratch database. Local `prisma dev` servers expose one
     // (see `npx prisma dev ls`); hosted Postgres can omit this and let Prisma create one.
     shadowDatabaseUrl: process.env.SHADOW_DATABASE_URL,
