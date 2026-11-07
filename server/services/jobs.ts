@@ -9,11 +9,11 @@ import { isIsraelLocation, isRemoteLocation } from '@/server/discovery/location'
 import { FetchBlockedError } from '@/server/discovery/net/safe-fetch';
 import { politeFetch } from '@/server/discovery/net/polite-fetch';
 import { needsPaste, normalizeUrl } from '@/server/discovery/normalize-url';
-import { jobFingerprint, rankJobs, type Seniority } from '@/server/discovery/ranking';
+import { jobFingerprint, rankJobs, titleSearchWords, type Seniority } from '@/server/discovery/ranking';
 import { enabledSources } from '@/server/discovery/registry';
 import { fetchGotFriendsJob, GOTFRIENDS_COMPANY } from '@/server/discovery/scrape/gotfriends';
 import { fixtureJobs } from '@/server/discovery/sources/fixture';
-import { htmlToText, keywords } from '@/server/discovery/text';
+import { htmlToText } from '@/server/discovery/text';
 import type { Job, SourceAdapter } from '@/server/discovery/types';
 import { NotFoundError } from '@/server/errors';
 
@@ -255,19 +255,16 @@ export async function refreshStaleBoards(fetchBudgetMs = BOARD_FETCH_BUDGET_MS):
   }
 }
 
-/** Searches stored company-board jobs (title, team or description match). */
+/** Searches stored company-board jobs whose title names the role; ranking then checks relevance exactly. */
 async function searchBoards(query: string): Promise<Job[]> {
   await refreshStaleBoards();
-  const words = keywords(query).slice(0, 8);
+  const words = titleSearchWords(query);
   if (words.length === 0) return [];
   const rows = await db.job.findMany({
     where: {
       careerSourceId: { not: null },
       closedAt: null,
-      OR: words.flatMap(w => [
-        { title: { contains: w, mode: 'insensitive' as const } },
-        { descriptionText: { contains: w, mode: 'insensitive' as const } },
-      ]),
+      OR: words.map(w => ({ title: { contains: w, mode: 'insensitive' as const } })),
     },
     orderBy: { postedAt: 'desc' },
     take: 300,

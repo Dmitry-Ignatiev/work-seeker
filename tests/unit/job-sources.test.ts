@@ -4,7 +4,7 @@ import { detectJobSource } from '@/server/discovery/ats/detect';
 import { extractJobPostings, jobLocationText } from '@/server/discovery/jsonld';
 import { isIsraelLocation, isRemoteLocation } from '@/server/discovery/location';
 import { needsPaste, normalizeUrl } from '@/server/discovery/normalize-url';
-import { jobFingerprint, rankJobs } from '@/server/discovery/ranking';
+import { jobFingerprint, rankJobs, titleMatchesRole, titleSearchWords, wantedSeniority } from '@/server/discovery/ranking';
 import { pagesForQuery, parseGotFriendsJobPage, parseGotFriendsListing } from '@/server/discovery/scrape/gotfriends';
 import { htmlToText } from '@/server/discovery/text';
 import type { Job } from '@/server/discovery/types';
@@ -229,20 +229,68 @@ describe('ranking', () => {
     expect(rankJobs([a, b, c], { query: 'backend' }).map(r => r.job)).toEqual([a]);
   });
 
-  it('prefers title matches, Israel, recency and the requested seniority', () => {
+  it('prefers Israel and recency among relevant titles, and keeps only the requested level', () => {
     const now = new Date('2026-11-07');
-    const titleHit = job({ title: 'Senior Backend Engineer', postedAt: '2026-11-05' });
-    const descHit = job({ title: 'Engineer II', description: 'backend services', location: 'Berlin', remote: true });
+    const fresh = job({ title: 'Senior Backend Engineer', postedAt: '2026-11-05' });
+    const berlin = job({ title: 'Backend Engineer', location: 'Berlin', remote: true });
     const junior = job({ title: 'Junior Backend Developer', postedAt: '2026-11-05' });
-    const ranked = rankJobs([descHit, junior, titleHit], { query: 'backend', seniority: 'senior', now });
-    expect(ranked[0].job).toBe(titleHit);
-    expect(ranked.at(-1)?.job).toBe(descHit);
-    expect(rankJobs([titleHit, junior], { query: 'backend', seniority: 'junior', now })[0].job).toBe(junior);
+    const ranked = rankJobs([berlin, junior, fresh], { query: 'backend', seniority: 'senior', now });
+    expect(ranked.map(r => r.job)).toEqual([fresh, berlin]); // the junior role is filtered out
+    expect(rankJobs([fresh, junior], { query: 'backend', seniority: 'junior', now }).map(r => r.job)).toEqual([junior]);
   });
 
-  it('keeps topical-source results (role pages) even without a keyword hit', () => {
+  // Real case from a live search: "junior full stack developer" returned these.
+  it('needs the role in the title and the right level (junior full-stack search)', () => {
+    const titles = {
+      keep: ['Junior Full stack Developer', 'Full Stack Developer', 'Fullstack Engineer (Entry Level)', 'Full-Stack Developer, Student'],
+      drop: [
+        'Senior Full Stack Developer', // wrong level
+        'Full Stack Tech Lead', // wrong level
+        'Full Stack Team Leader',
+        'Experienced Full Stack Engineer',
+        'Junior Market Analyst', // only "junior" matches
+        'BizOps Junior Associate (Student Position)',
+        'Application Security Engineer', // only "engineer" matches
+        'DevOps Engineer',
+        'Senior Software Engineer - Tel Aviv',
+      ],
+    };
+    const all = [...titles.keep, ...titles.drop].map(title =>
+      job({ title, description: 'We build full stack products with React and Node. Junior developers welcome.' }),
+    );
+    const kept = rankJobs(all, { query: 'junior full stack developer' }).map(r => r.job.title);
+    expect(kept.sort()).toEqual([...titles.keep].sort());
+  });
+
+  it('matches role spellings and synonyms in titles', () => {
+    expect(titleMatchesRole('NodeJS Backend Developer', 'node.js developer')).toBe(true);
+    expect(titleMatchesRole('Back-End Engineer', 'backend engineer')).toBe(true);
+    expect(titleMatchesRole('SDET / Automation Engineer', 'QA engineer')).toBe(true);
+    expect(titleMatchesRole('Site Reliability Engineer', 'sre')).toBe(true);
+    expect(titleMatchesRole('Senior DevOps Engineer- IL', 'senior devops engineer kubernetes aws')).toBe(true);
+    expect(titleMatchesRole('Senior Applications & Integrations Engineer', 'senior devops engineer kubernetes aws')).toBe(false);
+    expect(titleMatchesRole('Customer Success Manager', 'customer success')).toBe(true);
+    // Only generic words: any engineer/developer title is relevant.
+    expect(titleMatchesRole('Senior Software Engineer', 'software engineer')).toBe(true);
+    expect(titleMatchesRole('Marketing Manager', 'software engineer')).toBe(false);
+  });
+
+  it('reads the level from the query words when it is not passed explicitly', () => {
+    expect(wantedSeniority('junior react developer')).toBe('junior');
+    expect(wantedSeniority('student position qa')).toBe('junior');
+    expect(wantedSeniority('senior go engineer')).toBe('senior');
+    expect(wantedSeniority('devops engineer')).toBeUndefined();
+    expect(wantedSeniority('devops engineer', 'lead')).toBe('lead');
+    expect(titleSearchWords('senior node.js backend engineer')).toEqual(expect.arrayContaining(['node.js', 'nodejs', 'node', 'backend']));
+  });
+
+  it('keeps Hebrew-only titles from role pages, but checks their English titles like any other', () => {
+    const topicalSources = new Set<Job['source']>(['gotfriends']);
     const hebrew = job({ source: 'gotfriends', title: 'מפתח/ת צד שרת' });
-    expect(rankJobs([hebrew], { query: 'backend', topicalSources: new Set(['gotfriends']) })).toHaveLength(1);
+    const wrongRole = job({ source: 'gotfriends', title: 'Backend Engineer בחברת סטארט-אפ' });
+    const rightRole = job({ source: 'gotfriends', title: 'Full Stack Software Engineer בחברת סטארט-אפ' });
+    expect(rankJobs([hebrew], { query: 'backend', topicalSources })).toHaveLength(1);
     expect(rankJobs([hebrew], { query: 'backend' })).toHaveLength(0);
+    expect(rankJobs([wrongRole, rightRole], { query: 'full stack developer', topicalSources }).map(r => r.job)).toEqual([rightRole]);
   });
 });

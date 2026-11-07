@@ -80,9 +80,10 @@ describe('assistant', () => {
     const result = await agent.generate({ prompt: 'Senior backend jobs in Tel Aviv' });
 
     expect(result.text).toContain('Here are the jobs I found');
-    expect(await db.job.count()).toBe(3);
+    // 2 of the 3 demo listings are backend roles; "Platform Engineer" is not, so it isn't saved.
+    expect(await db.job.count()).toBe(2);
     const [run] = await db.aiRun.findMany();
-    expect(run).toMatchObject({ userId: user.id, kind: 'ASSISTANT', promptVersion: 'assistant-v1', succeeded: true });
+    expect(run).toMatchObject({ userId: user.id, kind: 'ASSISTANT', promptVersion: 'assistant-v3', succeeded: true });
     expect(run.inputTokens).toBeGreaterThan(0);
     expect(JSON.stringify(run)).not.toContain('Tel Aviv');
   });
