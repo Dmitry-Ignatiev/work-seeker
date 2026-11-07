@@ -8,7 +8,7 @@ export default function AppLayout({ children }: LayoutProps<'/'>) {
     <div className="flex min-h-full flex-1 flex-col">
       <header className="sticky top-0 z-20 border-b bg-background/90 backdrop-blur">
         <div className="mx-auto flex h-14 w-full max-w-6xl items-center gap-4 px-4">
-          <Link href="/jobs" className="shrink-0 font-heading font-semibold">
+          <Link href="/assistant" className="shrink-0 font-heading font-semibold">
             Work Seeker
           </Link>
           <AppNav />

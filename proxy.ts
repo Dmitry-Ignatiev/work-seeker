@@ -22,6 +22,5 @@ export const config = {
     '/cvs/:path*',
     '/searches/:path*',
     '/assistant/:path*',
-    '/onboarding/:path*',
   ],
 };

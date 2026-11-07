@@ -17,7 +17,8 @@ export const auth = betterAuth({
   // Production signs in with OAuth only: email flows would need a paid sending domain.
   emailAndPassword: { enabled: authOptions.emailPassword, minPasswordLength: 10 },
   socialProviders: { ...(google && { google }), ...(github && { github }) },
-  rateLimit: { enabled: true },
+  // E2E creates many accounts from one IP within seconds; real traffic is always rate limited.
+  rateLimit: { enabled: process.env.E2E !== '1' },
   // Must be last: lets Server Actions set auth cookies.
   plugins: [nextCookies()],
 });

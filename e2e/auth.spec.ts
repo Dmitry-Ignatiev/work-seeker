@@ -1,12 +1,12 @@
 import { expect, test } from '@playwright/test';
 
 test('signed-out visitors are sent to sign-in, keeping where they were going', async ({ page }) => {
-  await page.goto('/jobs');
-  await expect(page).toHaveURL(/\/sign-in\?next=%2Fjobs$/);
+  await page.goto('/assistant');
+  await expect(page).toHaveURL(/\/sign-in\?next=%2Fassistant$/);
   await expect(page.getByRole('heading', { name: 'Sign in to Work Seeker' })).toBeVisible();
 });
 
-test('a new user can sign up, lands on onboarding, and can sign out', async ({ page }) => {
+test('a new user can sign up, lands in the chat, and can sign out', async ({ page }) => {
   const email = `e2e-${Date.now()}@example.test`;
 
   await page.goto('/sign-in');
@@ -16,12 +16,12 @@ test('a new user can sign up, lands on onboarding, and can sign out', async ({ p
   await page.getByLabel('Password').fill('e2e-password-123');
   await page.getByRole('button', { name: 'Create account' }).click();
 
-  await expect(page).toHaveURL(/\/onboarding$/);
+  await expect(page).toHaveURL(/\/assistant$/);
   await expect(page.getByTestId('user-name')).toHaveText('E2E User');
-  await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Jobs' })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Chat' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Sign out' }).click();
   await expect(page).toHaveURL(/\/$/);
-  await page.goto('/jobs');
+  await page.goto('/assistant');
   await expect(page).toHaveURL(/\/sign-in/);
 });

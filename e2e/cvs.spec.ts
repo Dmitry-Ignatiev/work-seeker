@@ -8,11 +8,12 @@ async function signUp(page: Page) {
   await page.getByLabel('Email').fill(`cv-${Date.now()}@example.test`);
   await page.getByLabel('Password').fill('e2e-password-123');
   await page.getByRole('button', { name: 'Create account' }).click();
-  await expect(page).toHaveURL(/\/onboarding$/);
+  await expect(page).toHaveURL(/\/assistant$/);
 }
 
-test('upload a CV during onboarding, see its skills, then delete it', async ({ page }) => {
+test('upload a CV, see its skills, then delete it', async ({ page }) => {
   await signUp(page);
+  await page.goto('/cvs');
 
   const input = page.getByLabel('Upload your CV (PDF)');
   await expect(input).toBeEnabled(); // enabled once hydrated

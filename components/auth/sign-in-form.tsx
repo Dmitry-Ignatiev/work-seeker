@@ -30,8 +30,8 @@ export function SignInForm({ emailPassword, google, github }: Props) {
       setError(null);
       const { error } = await authClient.signIn.social({
         provider,
-        callbackURL: next ?? '/jobs',
-        newUserCallbackURL: '/onboarding',
+        callbackURL: next ?? '/assistant',
+        newUserCallbackURL: '/assistant',
       });
       if (error) setError(error.message ?? 'Sign-in failed.');
     });
@@ -49,7 +49,7 @@ export function SignInForm({ emailPassword, google, github }: Props) {
         setError(result.error.message ?? 'Something went wrong.');
         return;
       }
-      router.push(mode === 'sign-up' ? '/onboarding' : (next ?? '/jobs'));
+      router.push(mode === 'sign-up' ? '/assistant' : (next ?? '/assistant'));
       router.refresh();
     });
 

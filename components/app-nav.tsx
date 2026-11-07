@@ -1,17 +1,13 @@
 'use client';
 
-import { BriefcaseIcon, FileTextIcon, KanbanSquareIcon, MessageSquareIcon, SearchIcon, UserIcon } from 'lucide-react';
+import { FileTextIcon, MessageSquareIcon } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 
 export const NAV_ITEMS = [
-  { href: '/jobs', label: 'Jobs', icon: BriefcaseIcon },
-  { href: '/applications', label: 'Applications', icon: KanbanSquareIcon },
-  { href: '/profile', label: 'Profile', icon: UserIcon },
+  { href: '/assistant', label: 'Chat', icon: MessageSquareIcon },
   { href: '/cvs', label: 'CVs', icon: FileTextIcon },
-  { href: '/searches', label: 'Searches', icon: SearchIcon },
-  { href: '/assistant', label: 'Assistant', icon: MessageSquareIcon },
 ] as const;
 
 export function AppNav() {
