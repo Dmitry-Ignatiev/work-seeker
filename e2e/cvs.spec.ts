@@ -3,6 +3,7 @@ import { signUp } from './helpers';
 import { makePdf, SAMPLE_CV_LINES } from '../tests/support/make-pdf';
 
 test('upload a CV, see its skills, then delete it', async ({ page }) => {
+  test.slow(); // the dev server compiles each download route (with the PDF library) on its first request
   await signUp(page, 'CV Tester', 'cv');
   await page.goto('/my-cvs');
 
@@ -23,6 +24,17 @@ test('upload a CV, see its skills, then delete it', async ({ page }) => {
     await expect(skills.getByText(skill, { exact: true })).toBeVisible();
   }
 
+  // The CV downloads as DOCX (converted) or PDF (rebuilt), with its own text.
+  const downloads = card.getByRole('group', { name: 'Download Dana Levi CV' });
+  for (const [name, type, magic] of [['DOCX', 'wordprocessingml', 'PK'], ['PDF', 'application/pdf', '%PDF-']]) {
+    const href = await downloads.getByRole('link', { name }).getAttribute('href');
+    const file = await page.request.get(href!);
+    expect(file.status()).toBe(200);
+    expect(file.headers()['content-type']).toContain(type);
+    expect(file.headers()['content-disposition']).toContain('Dana Levi CV');
+    expect((await file.body()).subarray(0, magic.length).toString()).toBe(magic);
+  }
+
   await card.getByRole('button', { name: 'Delete' }).click();
   await card.getByRole('button', { name: 'Confirm delete' }).click();
   await expect(page.getByText('No CVs yet.')).toBeVisible();
@@ -40,4 +52,10 @@ test('a file that is not a PDF is rejected with a clear message', async ({ page 
   });
   await expect(page.getByText('Only PDF files are supported.')).toBeVisible();
   await expect(page.getByText('No CVs yet.')).toBeVisible();
+});
+
+test("an uploaded CV can't be downloaded without signing in, or by someone else", async ({ page, request }) => {
+  for (const format of ['docx', 'pdf']) expect((await request.get(`/api/cv-uploads/not-a-real-id/${format}`)).status()).toBe(401);
+  await signUp(page, 'Other User', 'cv');
+  for (const format of ['docx', 'pdf']) expect((await page.request.get(`/api/cv-uploads/not-a-real-id/${format}`)).status()).toBe(404);
 });

@@ -6,6 +6,7 @@ import { makePdf, SAMPLE_CV_LINES } from '../tests/support/make-pdf';
 // (Node.js, which the CV has) and one the guard must refuse (AWS, which it doesn't).
 
 test('tailor a CV for a job: upload in chat, see what changed and what was refused, confirm a skill, download', async ({ page }) => {
+  test.slow(); // the dev server compiles each download route (with the PDF library) on its first request
   await signUp(page, 'Tailor Tester', 'tailor');
 
   const message = page.getByLabel('Message');
@@ -35,11 +36,14 @@ test('tailor a CV for a job: upload in chat, see what changed and what was refus
   await expect(result.getByTestId('refused')).toContainText('"AWS" isn\'t in your CV');
   await expect(result.getByTestId('missing')).toContainText('Not in your CV: AWS');
 
-  // Download works for the owner.
-  const href = await result.getByRole('link', { name: 'Download DOCX' }).getAttribute('href');
-  const download = await page.request.get(href!);
-  expect(download.status()).toBe(200);
-  expect(download.headers()['content-type']).toContain('wordprocessingml');
+  // Download works for the owner, as DOCX or PDF.
+  const downloads = result.getByRole('group', { name: 'Download tailored CV' });
+  for (const [name, type] of [['DOCX', 'wordprocessingml'], ['PDF', 'application/pdf']]) {
+    const href = await downloads.getByRole('link', { name }).getAttribute('href');
+    const download = await page.request.get(href!);
+    expect(download.status()).toBe(200);
+    expect(download.headers()['content-type']).toContain(type);
+  }
 
   // AWS is missing: the user says in the chat that they have it, approves, and it's saved.
   // The search page stays mounted (hidden) behind the job page, so address the job page's chat.
@@ -55,6 +59,8 @@ test('tailor a CV for a job: upload in chat, see what changed and what was refus
 });
 
 test("a tailored CV can't be downloaded by someone else", async ({ request }) => {
-  const response = await request.get('/api/tailored-cvs/not-a-real-id/docx');
-  expect(response.status()).toBe(401);
+  for (const format of ['docx', 'pdf']) {
+    const response = await request.get(`/api/tailored-cvs/not-a-real-id/${format}`);
+    expect(response.status()).toBe(401);
+  }
 });

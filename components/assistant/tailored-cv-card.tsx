@@ -47,12 +47,21 @@ export function TailoredCvCard({ result }: { result: TailorResult }) {
             {result.job.company} · from your CV “{result.cvLabel}”
           </p>
           {result.layout === 'MULTI_COLUMN' && (
-            <p className="text-xs text-muted-foreground">Your PDF has two columns, so the DOCX is a single-column version.</p>
+            <p className="text-xs text-muted-foreground">Your PDF has two columns, so the download is a single-column version.</p>
           )}
         </div>
-        <a href={result.downloadUrl} download className={buttonVariants({ size: 'sm' })}>
-          <DownloadIcon aria-hidden /> Download DOCX
-        </a>
+        <div className="flex gap-2" role="group" aria-label="Download tailored CV">
+          <a href={result.downloadUrl} download className={buttonVariants({ size: 'sm' })}>
+            <DownloadIcon aria-hidden /> DOCX
+          </a>
+          <a
+            href={result.pdfUrl ?? result.downloadUrl.replace(/\/docx$/, '/pdf')}
+            download
+            className={buttonVariants({ size: 'sm', variant: 'outline' })}
+          >
+            <DownloadIcon aria-hidden /> PDF
+          </a>
+        </div>
       </header>
 
       {result.keywordTotal > 0 && (

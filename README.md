@@ -111,7 +111,7 @@ components/       UI (components/ui is shadcn); assistant/ is the chat
 server/           server-only code
   ai/             agent, prompts, model choice, budget, AI call ledger, offline mocks
   discovery/      job sources: company boards (Greenhouse/Lever/Ashby), GotFriends, Remote OK, Arbeitnow
-  tailor/         truthfulness guard, CV structure, DOCX
+  tailor/         truthfulness guard, CV structure, DOCX and PDF rebuilt from the CV layout
   recovery/       recovery codes
   services/       authorization lives here: every function takes userId first
 prisma/           schema, migrations, seed data

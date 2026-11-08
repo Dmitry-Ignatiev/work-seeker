@@ -44,7 +44,7 @@ const LINK_COLOR = '0563C1';
 const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /** Applies the edits to a copy of the paragraphs. */
-function applyEdits(input: LayoutDocxInput): { paragraphs: LayoutParagraph[]; unplaced: number } {
+export function applyEdits(input: LayoutDocxInput): { paragraphs: LayoutParagraph[]; unplaced: number } {
   const normalize = input.normalize ?? ((t: string) => t);
   const restore = input.restore ?? ((t: string) => t);
   const paragraphs: LayoutParagraph[] = input.layout.paragraphs.map(p => ({ ...p, runs: p.runs.map(r => ({ ...r })) }));

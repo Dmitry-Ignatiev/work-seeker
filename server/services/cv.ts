@@ -1,11 +1,15 @@
 import 'server-only';
 import { createHash } from 'node:crypto';
 import type { Prisma } from '@/generated/prisma/client';
-import type { CvLayout } from '@/server/cv/layout';
+import { parseStoredLayout, type CvLayout } from '@/server/cv/layout';
 import type { CvLink } from '@/server/cv/links';
 import { db } from '@/server/db';
 import { isUniqueViolation, NotFoundError } from '@/server/errors';
+import type { CvFileFormat } from '@/server/download';
 import { scanSkills } from '@/server/matching/cv-skills';
+import { plainTextLayout } from '@/server/tailor/fallback-layout';
+import { buildLayoutDocx } from '@/server/tailor/layout-docx';
+import { buildLayoutPdf } from '@/server/tailor/layout-pdf';
 
 export interface CvSummary {
   id: string;
@@ -15,6 +19,8 @@ export interface CvSummary {
   pageCount: number;
   isDefault: boolean;
   createdAt: Date;
+  /** Why the PDF's layout couldn't be kept (MULTI_COLUMN, RTL), if it couldn't. */
+  layoutNote: string | null;
   /** Canonical skill names found in the text, most mentioned first. */
   skills: string[];
 }
@@ -53,6 +59,7 @@ export async function listCvs(userId: string): Promise<CvSummary[]> {
       pageCount: true,
       isDefault: true,
       createdAt: true,
+      layoutNote: true,
       skills: {
         select: { skill: { select: { canonicalName: true } } },
         orderBy: [{ mentions: 'desc' }, { skill: { canonicalName: 'asc' } }],
@@ -152,4 +159,22 @@ export async function deleteCv(userId: string, cvId: string): Promise<void> {
       if (next) await tx.cv.update({ where: { id: next.id }, data: { isDefault: true } });
     }
   });
+}
+
+/**
+ * An uploaded CV as a file, with no AI and no edits: DOCX converts it, PDF gives a PDF back. Both are rebuilt
+ * from the layout read at upload (the original file is never stored), or from its text when there's none.
+ */
+export async function renderUploadedCv(
+  userId: string,
+  cvId: string,
+  format: CvFileFormat,
+): Promise<{ buffer: Buffer; fileName: string; usedLayout: boolean }> {
+  const cv = await db.cv.findFirst({ where: { id: cvId, userId }, select: { label: true, textContent: true, layout: true } });
+  if (!cv) throw new NotFoundError('CV');
+  const stored = parseStoredLayout(cv.layout);
+  const layout = stored ?? plainTextLayout(cv.textContent);
+  const { buffer } =
+    format === 'pdf' ? await buildLayoutPdf({ layout, edits: [], title: cv.label }) : await buildLayoutDocx({ layout, edits: [] });
+  return { buffer, fileName: cv.label, usedLayout: stored !== null };
 }

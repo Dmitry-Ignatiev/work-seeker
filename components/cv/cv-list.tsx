@@ -1,10 +1,10 @@
 'use client';
 
-import { FileTextIcon } from 'lucide-react';
+import { DownloadIcon, FileTextIcon } from 'lucide-react';
 import { useEffect, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { deleteCvAction, setDefaultCvAction, type ActionResult } from '@/server/actions/cv';
 
@@ -17,6 +17,8 @@ export interface CvRow {
   isDefault: boolean;
   /** ISO date */
   createdAt: string;
+  /** Why the PDF's layout couldn't be kept (MULTI_COLUMN, RTL), if it couldn't. */
+  layoutNote: string | null;
   skills: string[];
 }
 
@@ -119,7 +121,32 @@ function CvCard({ cv }: { cv: CvRow }) {
             </ul>
           </div>
         )}
+        <CvDownloads cv={cv} />
       </CardContent>
     </Card>
+  );
+}
+
+/** The CV as a file: DOCX converts it, PDF gives a PDF back. Both are rebuilt from the layout read at upload. */
+function CvDownloads({ cv }: { cv: CvRow }) {
+  const link = buttonVariants({ variant: 'outline', size: 'sm' });
+  return (
+    <div className="mt-4 flex flex-col gap-1.5 border-t pt-3">
+      <div className="flex flex-wrap items-center gap-2" role="group" aria-label={`Download ${cv.label}`}>
+        <span className="text-sm text-muted-foreground">Download as</span>
+        <a href={`/api/cv-uploads/${cv.id}/docx`} download className={link}>
+          <DownloadIcon aria-hidden /> DOCX
+        </a>
+        {cv.layoutNote !== 'RTL' && (
+          <a href={`/api/cv-uploads/${cv.id}/pdf`} download className={link}>
+            <DownloadIcon aria-hidden /> PDF
+          </a>
+        )}
+      </div>
+      {cv.layoutNote === 'MULTI_COLUMN' && (
+        <p className="text-xs text-muted-foreground">This PDF has two columns, so the download is a one-column copy of its text.</p>
+      )}
+      {cv.layoutNote === 'RTL' && <p className="text-xs text-muted-foreground">Hebrew CVs download as DOCX only.</p>}
+    </div>
   );
 }

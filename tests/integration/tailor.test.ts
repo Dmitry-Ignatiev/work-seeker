@@ -2,7 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { collectLinks } from '@/server/cv/links';
 import { db } from '@/server/db';
 import { NotFoundError } from '@/server/errors';
-import { createCv } from '@/server/services/cv';
+import { createCv, renderUploadedCv } from '@/server/services/cv';
 import { addJobFromText } from '@/server/services/jobs';
 import { confirmExperience, getTailoredCvForDownload, renderTailoredCv, tailorCvForJob } from '@/server/services/tailor';
 import { buildCvDocx } from '@/server/tailor/docx';
@@ -141,6 +141,63 @@ describe('CV tailoring', () => {
     const xml = await (await JSZip.loadAsync(buffer)).file('word/document.xml')!.async('string');
     for (const change of result.changes) expect(xml).toContain(change.after.replace(/^[-•]\s+/, '').slice(0, 40));
     expect(xml).toContain('<w:jc w:val="center"/>'); // the centered name stays centered
+  });
+
+  it('downloads the tailored CV as a PDF too, with the same edits in the original layout', async () => {
+    const user = await createTestUser({ name: 'Dana Levi' });
+    const pdf = await extractPdfText(makePdf([DESIGNED_CV_LINES]));
+    await createCv(user.id, { fileName: 'cv.pdf', sizeBytes: 1000, pageCount: 1, text: pdf.text, links: pdf.links, layout: pdf.layout });
+    const added = await addJobFromText(user.id, { text: JOB_TEXT, title: 'Senior Backend Engineer', company: 'Acme Robotics' });
+    if (added.status !== 'OK') throw new Error(added.status);
+    const result = await tailorCvForJob(user.id, added.job.id);
+    if (result.status !== 'OK') throw new Error(result.status);
+    expect(result.pdfUrl).toBe(`/api/tailored-cvs/${result.id}/pdf`);
+
+    const { buffer, usedLayout } = await renderTailoredCv(user.id, result.id, 'pdf');
+    expect(usedLayout).toBe(true);
+    const out = await extractPdfText(new Uint8Array(buffer));
+    expect(out.pageCount).toBe(1);
+    const flat = out.text.replace(/\s+/g, ' ');
+    for (const change of result.changes) expect(flat).toContain(change.after.replace(/^[-•]\s+/, '').slice(0, 30));
+
+    const bob = await createTestUser();
+    await expect(renderTailoredCv(bob.id, result.id, 'pdf')).rejects.toThrow(NotFoundError);
+  });
+
+  it('draws the template PDF for a CV uploaded before layouts were read', async () => {
+    const { user, jobId } = await userWithCvAndJob();
+    const result = await tailorCvForJob(user.id, jobId);
+    if (result.status !== 'OK') throw new Error(result.status);
+    const { buffer, usedLayout } = await renderTailoredCv(user.id, result.id, 'pdf');
+    expect(usedLayout).toBe(false);
+    expect((await extractPdfText(new Uint8Array(buffer))).text).toContain('Test User');
+  });
+
+  it('converts an uploaded CV to DOCX or gives it back as PDF, with no edits, for its owner only', async () => {
+    const user = await createTestUser({ name: 'Dana Levi' });
+    const pdf = await extractPdfText(makePdf([DESIGNED_CV_LINES]));
+    const { id } = await createCv(user.id, { fileName: 'Dana CV.pdf', sizeBytes: 1000, pageCount: 1, text: pdf.text, layout: pdf.layout });
+
+    const docx = await renderUploadedCv(user.id, id, 'docx');
+    expect(docx).toMatchObject({ fileName: 'Dana CV', usedLayout: true });
+    const xml = await (await JSZip.loadAsync(docx.buffer)).file('word/document.xml')!.async('string');
+    expect(xml).toContain('Designed Node.js APIs backed by PostgreSQL');
+
+    const back = await extractPdfText(new Uint8Array((await renderUploadedCv(user.id, id, 'pdf')).buffer));
+    expect(back.pageCount).toBe(1);
+    expect(back.text.replace(/\s+/g, ' ')).toBe(pdf.text.replace(/\s+/g, ' '));
+
+    const bob = await createTestUser();
+    await expect(renderUploadedCv(bob.id, id, 'pdf')).rejects.toThrow(NotFoundError);
+    await expect(renderUploadedCv(bob.id, id, 'docx')).rejects.toThrow(NotFoundError);
+  });
+
+  it('rebuilds an uploaded CV without a layout from its text', async () => {
+    const user = await createTestUser();
+    const { id } = await createCv(user.id, { fileName: 'cv.pdf', sizeBytes: 1000, pageCount: 1, text: SAMPLE_CV_LINES.join('\n') });
+    const { buffer, usedLayout } = await renderUploadedCv(user.id, id, 'pdf');
+    expect(usedLayout).toBe(false);
+    expect((await extractPdfText(new Uint8Array(buffer))).text).toContain(SAMPLE_CV_LINES[4]);
   });
 
   it('uses the template for a CV uploaded before layouts were read', async () => {

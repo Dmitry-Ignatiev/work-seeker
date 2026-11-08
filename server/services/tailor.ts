@@ -5,7 +5,10 @@ import { parseStoredLayout } from '@/server/cv/layout';
 import { collectLinks, headerLinks, parseStoredLinks } from '@/server/cv/links';
 import { buildCvDocx, restorePlaceholders, type ContactItem } from '@/server/tailor/docx';
 import { lengthLimits } from '@/server/tailor/fit';
+import { templateLayout } from '@/server/tailor/fallback-layout';
 import { buildLayoutDocx } from '@/server/tailor/layout-docx';
+import { buildLayoutPdf } from '@/server/tailor/layout-pdf';
+import type { CvFileFormat } from '@/server/download';
 import { db } from '@/server/db';
 import { NotFoundError } from '@/server/errors';
 import { scanSkills } from '@/server/matching/cv-skills';
@@ -157,6 +160,8 @@ export interface TailorResult {
   rejected: { before: string; proposed: string; reason: string }[];
   missing: string[];
   downloadUrl: string;
+  /** Missing on results saved before PDF downloads existed. */
+  pdfUrl?: string;
   /** How the DOCX looks: the user's own layout, or the template (and why). */
   layout: 'ORIGINAL' | 'MULTI_COLUMN' | 'TEMPLATE';
 }
@@ -262,6 +267,7 @@ export async function tailorCvForJob(userId: string, jobId: string, cvId?: strin
     // Only concrete things (tools, technologies, certifications): "customer obsession" isn't worth a prompt.
     missing: result.missing.filter(m => keywords.find(k => k.keyword === m)?.strict),
     downloadUrl: `/api/tailored-cvs/${saved.id}/docx`,
+    pdfUrl: `/api/tailored-cvs/${saved.id}/pdf`,
     layout: parseStoredLayout(cv.layout) ? 'ORIGINAL' : cv.layoutNote === 'MULTI_COLUMN' ? 'MULTI_COLUMN' : 'TEMPLATE',
   };
 }
@@ -306,22 +312,32 @@ export async function getTailoredCvForDownload(userId: string, id: string) {
 }
 
 /**
- * The tailored CV as a DOCX: rebuilt from the user's own layout when the PDF's was readable, so it keeps their
- * design, wording and page count; otherwise the clean template. An edit that can't be placed in the layout
- * means the template is used, so no accepted change is ever lost.
+ * The tailored CV as a DOCX or PDF: rebuilt from the user's own layout when the PDF's was readable, so it keeps
+ * their design, wording and page count; otherwise the clean template. An edit that can't be placed in the layout
+ * means the template is used, so no accepted change is ever lost. Both formats place the edits the same way.
  */
-export async function renderTailoredCv(userId: string, id: string): Promise<{ buffer: Buffer; fileName: string; usedLayout: boolean }> {
+export async function renderTailoredCv(
+  userId: string,
+  id: string,
+  format: CvFileFormat = 'docx',
+): Promise<{ buffer: Buffer; fileName: string; usedLayout: boolean }> {
   const cv = await getTailoredCvForDownload(userId, id);
+  const build = format === 'pdf' ? buildLayoutPdf : buildLayoutDocx;
   if (cv.layout) {
-    const { buffer, unplaced } = await buildLayoutDocx({
+    const { buffer, unplaced } = await build({
       layout: cv.layout,
       edits: cv.changes,
       addedSkills: cv.addedSkills,
       skills: cv.skills,
       normalize: text => redactPii(text, { names: [cv.name] }).text,
       restore: text => restorePlaceholders(text, cv.name),
+      title: cv.fileName,
     });
     if (unplaced === 0) return { buffer, fileName: cv.fileName, usedLayout: true };
+  }
+  if (format === 'pdf') {
+    const { buffer } = await buildLayoutPdf({ layout: templateLayout(cv), edits: [], title: cv.fileName });
+    return { buffer, fileName: cv.fileName, usedLayout: false };
   }
   return { buffer: await buildCvDocx(cv), fileName: cv.fileName, usedLayout: false };
 }
