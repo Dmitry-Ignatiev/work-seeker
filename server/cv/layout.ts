@@ -257,6 +257,8 @@ export function buildLayout(pages: LayoutPage[]): LayoutResult {
   const typicalRatio = ratios.length > 0 ? ratios[Math.floor(ratios.length * 0.25)] : 1.2;
 
   // Paragraphs: wrapped lines of the same text block become one paragraph.
+  // A line in bold only, under a line that isn't, is a heading ("Languages" after a full skills line).
+  const allBold = (l: Line) => l.runs.some(r => r.text.trim()) && l.runs.every(r => r.bold || !r.text.trim());
   const paragraphs: { lines: Line[]; align: LayoutParagraph['align'] }[] = [];
   for (const line of lines) {
     const current = paragraphs.at(-1);
@@ -270,6 +272,7 @@ export function buildLayout(pages: LayoutPage[]): LayoutResult {
       !prev.aside &&
       !line.aside &&
       Math.abs(prev.size - line.size) < 0.6 &&
+      !(allBold(line) && !allBold(prev)) &&
       prev.y - line.y <= line.size * 1.6 &&
       // the previous line was full (it wrapped)…
       prev.end >= right - Math.max(0.15 * width, 3 * line.size) &&
