@@ -1,5 +1,7 @@
 import 'server-only';
 import { PrismaPg } from '@prisma/adapter-pg';
+import { attachDatabasePool } from '@vercel/functions';
+import { Pool } from 'pg';
 import { PrismaClient } from '@/generated/prisma/client';
 
 /**
@@ -18,8 +20,22 @@ function isLocalDatabase(connectionString: string): boolean {
 function createClient() {
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) throw new Error('DATABASE_URL is not set');
-  const pool = isLocalDatabase(connectionString) ? { connectionString, max: 1 } : { connectionString };
-  return new PrismaClient({ adapter: new PrismaPg(pool) });
+  if (isLocalDatabase(connectionString)) {
+    return new PrismaClient({ adapter: new PrismaPg({ connectionString, max: 1 }) });
+  }
+  return new PrismaClient({ adapter: new PrismaPg(hostedPool(connectionString)) });
+}
+
+/**
+ * Vercel suspends idle function instances. Without help, the pool keeps sockets that are dead by the
+ * time the instance wakes, and the next query fails ("Authentication timed out", ECONNRESET).
+ * `attachDatabasePool` releases idle clients before suspension. A dropped idle client is logged, not fatal.
+ */
+function hostedPool(connectionString: string): Pool {
+  const pool = new Pool({ connectionString, connectionTimeoutMillis: 10_000 });
+  pool.on('error', error => console.error('database pool error:', error.name));
+  attachDatabasePool(pool);
+  return pool;
 }
 
 // Reuse one client across hot reloads in development.
