@@ -3,6 +3,7 @@
 import { FileTextIcon, MessageSquareIcon } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { Suspense } from 'react';
 import { cn } from '@/lib/utils';
 
 export const NAV_ITEMS = [
@@ -10,12 +11,27 @@ export const NAV_ITEMS = [
   { href: '/my-cvs', label: 'CVs', icon: FileTextIcon },
 ] as const;
 
+/**
+ * On dynamic routes (/jobs/[id]) the path is only known at request time, so the active highlight
+ * streams in; until then the same links show without it.
+ */
 export function AppNav() {
-  const pathname = usePathname();
+  return (
+    <Suspense fallback={<NavLinks pathname={null} />}>
+      <ActiveNav />
+    </Suspense>
+  );
+}
+
+function ActiveNav() {
+  return <NavLinks pathname={usePathname()} />;
+}
+
+function NavLinks({ pathname }: { pathname: string | null }) {
   return (
     <nav aria-label="Main" className="flex gap-1 overflow-x-auto">
       {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-        const active = pathname === href || pathname.startsWith(`${href}/`);
+        const active = pathname !== null && (pathname === href || pathname.startsWith(`${href}/`));
         return (
           <Link
             key={href}
