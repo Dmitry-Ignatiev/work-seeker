@@ -50,6 +50,22 @@ describe('reading a CV layout from a PDF', () => {
     expect(bullet.indent).toBeGreaterThan(bullet.bullet!.at);
   });
 
+  it('makes Word open the DOCX in Print Layout, not Web Layout', async () => {
+    const { buffer } = await buildLayoutDocx({ layout: await designedLayout(), edits: [] });
+    const settings = await (await JSZip.loadAsync(buffer)).file('word/settings.xml')!.async('string');
+    expect(settings).toContain('<w:view w:val="print"/>');
+  });
+
+  it('keeps a bold heading right under a full line of text as its own paragraph', async () => {
+    const skills = 'Java, REST APIs, Python, LangGraph, SQL, MySQL, Docker, Linux CLI, Django, React, Bash, PowerShell';
+    const layout = await designedLayout([
+      [...DESIGNED_CV_LINES, { text: 'Core Skills', bold: true }, skills, { text: 'Languages', bold: true }, 'English, Hebrew, Russian'],
+    ]);
+    expect(paragraphText(find(layout, 'Java, REST APIs'))).toBe(skills);
+    expect(find(layout, 'Languages').runs[0].bold).toBe(true);
+    expect(paragraphText(find(layout, 'Languages'))).toBe('Languages');
+  });
+
   it('joins wrapped lines into one paragraph and starts later pages on a new page', async () => {
     const long = 'Led the migration of eleven services to a shared platform with clear ownership and on-call rules,';
     const layout = await designedLayout([

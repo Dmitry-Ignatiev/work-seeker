@@ -13,6 +13,7 @@ import {
   TextRun,
   type ParagraphChild,
 } from 'docx';
+import { DOCX_SETTINGS } from './docx-settings';
 import { linkForTitle, type CvLink } from '@/server/cv/links';
 import type { CvStructure } from './types';
 
@@ -169,5 +170,5 @@ export async function buildCvDocx({ name, contact, links = [], structure }: Docx
       },
     ],
   });
-  return Packer.toBuffer(doc);
+  return Packer.toBuffer(doc, false, DOCX_SETTINGS);
 }

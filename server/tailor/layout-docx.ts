@@ -12,6 +12,7 @@ import {
   type ParagraphChild,
 } from 'docx';
 import { comparable, paragraphText, stripBullet, type CvLayout, type LayoutParagraph, type LayoutRun } from '@/server/cv/layout';
+import { DOCX_SETTINGS } from './docx-settings';
 
 /**
  * Rebuilds the user's own CV as a DOCX from its layout (server/cv/layout.ts): same page size, margins, fonts,
@@ -205,5 +206,5 @@ export async function buildLayoutDocx(input: LayoutDocxInput): Promise<LayoutDoc
       },
     ],
   });
-  return { buffer: await Packer.toBuffer(doc), unplaced };
+  return { buffer: await Packer.toBuffer(doc, false, DOCX_SETTINGS), unplaced };
 }
