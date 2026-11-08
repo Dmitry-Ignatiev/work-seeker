@@ -32,14 +32,10 @@ export interface ToolPartActions {
   onAsk: (text: string) => void;
   /** Answers a tool approval request. */
   onApproval: (approvalId: string, approved: boolean) => void;
-  busy: boolean;
 }
 
-const tailorRequest = (job: { id: string; title: string; company: string }) =>
-  `Tailor my CV for "${job.title}" at ${job.company} (jobId ${job.id}).`;
-
 /** Renders one tool call: progress while it runs, then cards or a short status. */
-export function ToolPart({ part, onAsk, onApproval, busy }: { part: Part } & ToolPartActions) {
+export function ToolPart({ part, onAsk, onApproval }: { part: Part } & ToolPartActions) {
   switch (part.type) {
     case 'tool-searchJobs': {
       if (part.state === 'output-error') return <Failed>The job search failed. Try again.</Failed>;
@@ -63,13 +59,7 @@ export function ToolPart({ part, onAsk, onApproval, busy }: { part: Part } & Too
           {jobs.length > 0 && (
             <div className="grid gap-3 sm:grid-cols-2" aria-label="Jobs found">
               {jobs.map(job => (
-                <JobCard
-                  key={job.id}
-                  job={job}
-                  disabled={busy}
-                  onDetails={() => onAsk(`Tell me more about "${job.title}" at ${job.company} (jobId ${job.id}).`)}
-                  onTailor={() => onAsk(tailorRequest(job))}
-                />
+                <JobCard key={job.id} job={job} />
               ))}
             </div>
           )}
@@ -82,7 +72,7 @@ export function ToolPart({ part, onAsk, onApproval, busy }: { part: Part } & Too
       if (part.state !== 'output-available') return <Working>Reading the job…</Working>;
       if (part.output.status !== 'OK') return <Failed>{part.output.reason}</Failed>;
       const added = part.output.job;
-      return <JobCard job={added} disabled={busy} onTailor={() => onAsk(tailorRequest(added))} />;
+      return <JobCard job={added} />;
     }
 
     case 'tool-tailorCv': {

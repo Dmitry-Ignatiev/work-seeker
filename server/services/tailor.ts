@@ -11,7 +11,7 @@ import { NotFoundError } from '@/server/errors';
 import { scanSkills } from '@/server/matching/cv-skills';
 import { normalizeSkillName } from '@/server/matching/skills';
 import { applyGuard, SUMMARY_ID } from '@/server/tailor/guard';
-import { containsTerm, keywordKey } from '@/server/tailor/text-match';
+import { containsDegree, containsTerm, keywordKey } from '@/server/tailor/text-match';
 import type { CvStructure, JobKeyword, TailorChange } from '@/server/tailor/types';
 import { bulletCount, buildStructure, validateKeywords } from '@/server/tailor/validate';
 import { loadFullJob } from './jobs';
@@ -84,10 +84,38 @@ export async function getJobKeywords(userId: string, jobId: string) {
   return { job, keywords };
 }
 
+/**
+ * For the job page: the job's concrete requirements (tools, technologies, degrees…) and, per CV of this user,
+ * which of them that CV already shows (or the user confirmed). Reads keywords once per job (cached after).
+ */
+export async function jobRequirementsForCvs(userId: string, jobId: string) {
+  const { keywords } = await getJobKeywords(userId, jobId);
+  const strict = keywords.filter(k => k.strict);
+  const [tax, cvs, confirmed] = await Promise.all([
+    taxonomy(),
+    db.cv.findMany({ where: { userId }, select: { id: true, textContent: true } }),
+    db.confirmedExperience.findMany({ where: { userId }, select: { keyword: true } }),
+  ]);
+  const confirmedKeys = new Set(confirmed.flatMap(c => [keywordKey(c.keyword), ...tax.synonyms(c.keyword).map(keywordKey)]));
+  const have: Record<string, string[]> = {};
+  for (const cv of cvs) {
+    have[cv.id] = strict
+      .filter(
+        k =>
+          [k.keyword, ...tax.synonyms(k.keyword)].some(t => containsTerm(cv.textContent, t) || confirmedKeys.has(keywordKey(t))) ||
+          containsDegree(cv.textContent, k.keyword),
+      )
+      .map(k => k.keyword);
+  }
+  return { requirements: strict.map(k => ({ keyword: k.keyword, importance: k.importance })), have };
+}
+
 // ───────────────────────── The CV, structured (cached per CV) ─────────────────────────
 
-async function getCvForTailoring(userId: string) {
+async function getCvForTailoring(userId: string, cvId?: string) {
   const cv =
+    // The CV picked on the job page, if it's this user's; otherwise the default.
+    (cvId ? await db.cv.findFirst({ where: { id: cvId, userId } }) : null) ??
     (await db.cv.findFirst({ where: { userId, isDefault: true } })) ??
     (await db.cv.findFirst({ where: { userId }, orderBy: { createdAt: 'desc' } }));
   if (!cv) return null;
@@ -143,8 +171,8 @@ export type TailorOutcome =
  * Tailors the user's default CV to a job: the model proposes edits, the guard (server/tailor/guard.ts)
  * accepts only what the CV or the user's confirmations back. The result is saved for download.
  */
-export async function tailorCvForJob(userId: string, jobId: string): Promise<TailorOutcome> {
-  const cvData = await getCvForTailoring(userId);
+export async function tailorCvForJob(userId: string, jobId: string, cvId?: string): Promise<TailorOutcome> {
+  const cvData = await getCvForTailoring(userId, cvId);
   if (!cvData) return { status: 'NEEDS_CV' };
   const { cv, userName, redactedText, structure } = cvData;
   if (bulletCount(structure) === 0) {

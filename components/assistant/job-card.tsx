@@ -1,6 +1,7 @@
 import { ExternalLinkIcon, MapPinIcon, WandSparklesIcon } from 'lucide-react';
+import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
-import { Button, buttonVariants } from '@/components/ui/button';
+import { buttonVariants } from '@/components/ui/button';
 import type { JobSummary } from '@/server/services/jobs';
 
 function postedLabel(iso: string | null): string | null {
@@ -12,17 +13,8 @@ function postedLabel(iso: string | null): string | null {
   return days < 60 ? `${days} days ago` : null;
 }
 
-export function JobCard({
-  job,
-  onDetails,
-  onTailor,
-  disabled,
-}: {
-  job: JobSummary;
-  onDetails?: () => void;
-  onTailor?: () => void;
-  disabled?: boolean;
-}) {
+/** A job from a search. "Tailor my CV" and "Details" open the job's own page, with a chat about that job. */
+export function JobCard({ job }: { job: JobSummary }) {
   const posted = postedLabel(job.postedAt);
   return (
     <article className="flex flex-col gap-2 rounded-xl border bg-card p-4 text-card-foreground" aria-label={job.title}>
@@ -48,11 +40,9 @@ export function JobCard({
         </p>
       )}
       <div className="mt-auto flex flex-wrap gap-2 pt-1">
-        {onTailor && (
-          <Button size="sm" onClick={onTailor} disabled={disabled}>
-            <WandSparklesIcon aria-hidden /> Tailor my CV
-          </Button>
-        )}
+        <Link href={`/jobs/${job.id}?tailor=1`} className={buttonVariants({ size: 'sm' })}>
+          <WandSparklesIcon aria-hidden /> Tailor my CV
+        </Link>
         {job.source === 'Demo listing' ? (
           // Offline-mode listings are made up: no dead link to click.
           <span className="self-center text-xs text-muted-foreground">Demo listing, no real posting</span>
@@ -63,11 +53,9 @@ export function JobCard({
             </a>
           )
         )}
-        {onDetails && (
-          <Button variant="ghost" size="sm" onClick={onDetails} disabled={disabled}>
-            Details
-          </Button>
-        )}
+        <Link href={`/jobs/${job.id}`} className={buttonVariants({ variant: 'ghost', size: 'sm' })}>
+          Details
+        </Link>
       </div>
     </article>
   );

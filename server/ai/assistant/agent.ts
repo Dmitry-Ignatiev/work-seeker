@@ -4,7 +4,7 @@ import { isStepCount, ToolLoopAgent, type InferAgentUIMessage, type LanguageMode
 import { db } from '@/server/db';
 import { hashInput } from '../run';
 import { modelFor } from '../models';
-import { ASSISTANT_INSTRUCTIONS, ASSISTANT_PROMPT_VERSION } from './prompt';
+import { ASSISTANT_INSTRUCTIONS, ASSISTANT_PROMPT_VERSION, jobFocusInstructions, type JobFocus } from './prompt';
 import { createAssistantTools, type AssistantToolDeps } from './tools';
 
 export const MAX_STEPS = 10;
@@ -15,22 +15,28 @@ function approvalSecret(): string {
   return createHmac('sha256', base).update('work-seeker:tool-approval').digest('base64url');
 }
 
-function buildAgent(model: LanguageModel, userId: string, deps: AssistantToolDeps, onUsage?: (usage: LanguageModelUsage) => Promise<void>) {
+function buildAgent(
+  model: LanguageModel,
+  userId: string,
+  deps: AssistantToolDeps,
+  focus: JobFocus | undefined,
+  onUsage?: (usage: LanguageModelUsage) => Promise<void>,
+) {
   const tools = createAssistantTools(deps);
   return new ToolLoopAgent({
     model,
-    // Same instructions on every call: cached by Anthropic (about 10% of the price from the second call).
-    instructions: {
-      role: 'system',
-      content: ASSISTANT_INSTRUCTIONS,
-      providerOptions: { anthropic: { cacheControl: { type: 'ephemeral' } } },
-    },
+    instructions: [
+      // Same instructions on every call: cached by Anthropic (about 10% of the price from the second call).
+      { role: 'system', content: ASSISTANT_INSTRUCTIONS, providerOptions: { anthropic: { cacheControl: { type: 'ephemeral' } } } },
+      // On a job page: which job and CV this chat is about.
+      ...(focus ? [{ role: 'system' as const, content: jobFocusInstructions(focus) }] : []),
+    ],
     tools,
     toolsContext: {
       searchJobs: { userId },
       addJob: { userId },
       getJob: { userId },
-      tailorCv: { userId },
+      tailorCv: { userId, cvId: focus?.cv?.id },
       confirmExperience: { userId },
       followCompany: { userId },
     },
@@ -58,13 +64,14 @@ export type AssistantAgent = ReturnType<typeof buildAgent>;
 export type AssistantMessage = InferAgentUIMessage<AssistantAgent>;
 
 /**
- * A fresh agent per request, bound to the signed-in user. Token usage of the whole run
- * (all steps) is written to the AiRun ledger when it ends; prompts and replies are never stored.
+ * A fresh agent per request, bound to the signed-in user (and, on a job page, to that job and the CV they
+ * picked; the caller has checked both belong to the user). Token usage of the whole run is written to the
+ * AiRun ledger when it ends; prompts and replies are never stored.
  */
-export async function createAssistant(userId: string, deps: AssistantToolDeps = {}): Promise<AssistantAgent> {
+export async function createAssistant(userId: string, deps: AssistantToolDeps = {}, focus?: JobFocus): Promise<AssistantAgent> {
   const { model, modelId } = await modelFor('ASSISTANT');
   const started = Date.now();
-  return buildAgent(model, userId, deps, async usage => {
+  return buildAgent(model, userId, deps, focus, async usage => {
     await db.aiRun.create({
       data: {
         userId,

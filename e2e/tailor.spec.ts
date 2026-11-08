@@ -12,9 +12,13 @@ test('tailor a CV for a job: upload in chat, see what changed and what was refus
   await message.fill('Senior backend jobs in Tel Aviv');
   await message.press('Enter');
   const card = page.getByLabel('Jobs found').getByRole('article', { name: 'Senior Backend Engineer (Node.js)' });
-  await card.getByRole('button', { name: 'Tailor my CV' }).click();
+  await card.getByRole('link', { name: 'Tailor my CV' }).click();
 
-  // No CV yet: an upload box appears in the chat, and tailoring continues after the upload.
+  // The job's own page opens and tailoring starts there right away.
+  await expect(page).toHaveURL(/\/jobs\/[^/?]+\?tailor=1$/);
+  await expect(page.getByRole('heading', { level: 1, name: 'Senior Backend Engineer (Node.js)' })).toBeVisible();
+
+  // No CV yet: an upload box appears in the job's chat, and tailoring continues after the upload.
   const needed = page.getByTestId('cv-needed');
   const upload = needed.getByLabel('Upload your CV (PDF)');
   await expect(upload).toBeEnabled();
@@ -38,14 +42,16 @@ test('tailor a CV for a job: upload in chat, see what changed and what was refus
   expect(download.headers()['content-type']).toContain('wordprocessingml');
 
   // AWS is missing: the user says in the chat that they have it, approves, and it's saved.
-  await message.fill('I have real experience with AWS: two years running our services on AWS at Acme');
-  await message.press('Enter');
+  // The search page stays mounted (hidden) behind the job page, so address the job page's chat.
+  const jobChat = page.getByRole('region', { name: 'Chat about this job' });
+  await jobChat.getByLabel('Message').fill('I have real experience with AWS: two years running our services on AWS at Acme');
+  await jobChat.getByLabel('Message').press('Enter');
 
   const confirm = page.getByTestId('confirm-experience');
   await expect(confirm).toContainText('two years running our services on AWS at Acme');
   await confirm.getByRole('button', { name: 'Yes, it’s true' }).click();
   await expect(page.getByText('Saved: AWS')).toBeVisible();
-  await expect(page.getByTestId('assistant-message').last()).toContainText('Saved');
+  await expect(jobChat.getByTestId('assistant-message').last()).toContainText('Saved');
 });
 
 test("a tailored CV can't be downloaded by someone else", async ({ request }) => {

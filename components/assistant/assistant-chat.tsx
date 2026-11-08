@@ -1,12 +1,13 @@
 'use client';
 
 import { useChat } from '@ai-sdk/react';
-import { lastAssistantMessageIsCompleteWithApprovalResponses } from 'ai';
+import { DefaultChatTransport, lastAssistantMessageIsCompleteWithApprovalResponses } from 'ai';
 import { ArrowUpIcon, SquareIcon } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore, type ComponentType } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import type { AssistantMessage } from '@/server/ai/assistant/agent';
+import { CHAT_STORAGE_PREFIX } from './requests';
 import { RichText } from './rich-text';
 import { ToolPart } from './tool-part';
 
@@ -28,8 +29,77 @@ function friendlyError(error: Error): string {
   return error.message && error.message.length < 200 ? error.message : 'Something went wrong. Please try again.';
 }
 
-export function AssistantChat() {
+export interface ChatContext {
+  jobId: string;
+  cvId?: string;
+}
+
+interface Props {
+  /** Where this chat's history is kept in the tab: "search", or "job:<id>" for a job page. */
+  chatKey?: string;
+  /** Sent with every request: the job a job page's chat is about, and the CV picked there. */
+  context?: ChatContext;
+  /** Sent once when the chat opens empty (e.g. "Tailor my CV" from a job card). */
+  autoStart?: string;
+  /** Shown instead of the search examples when the chat is empty; `onAsk` sends a message as the user. */
+  EmptyState?: ComponentType<{ onAsk: (text: string) => void }>;
+  placeholder?: string;
+}
+
+const noSubscribe = () => () => {};
+/** False in the server HTML, true once React has hydrated: the saved history is only readable in the browser. */
+const useHydrated = () =>
+  useSyncExternalStore(
+    noSubscribe,
+    () => true,
+    () => false,
+  );
+
+/** The page context of each chat, read when a request is sent (so a CV picked later is used from then on). */
+const chatContexts = new Map<string, ChatContext | undefined>();
+
+function readSaved(storageKey: string): AssistantMessage[] {
+  try {
+    const saved = sessionStorage.getItem(storageKey);
+    return saved ? (JSON.parse(saved) as AssistantMessage[]) : [];
+  } catch {
+    return []; // unreadable or blocked storage: start empty
+  }
+}
+
+export function AssistantChat(props: Props) {
+  const hydrated = useHydrated();
+  if (!hydrated) return <div className="mx-auto w-full max-w-3xl flex-1" aria-busy="true" />;
+  return <Chat {...props} />;
+}
+
+function Chat({
+  chatKey = 'search',
+  context,
+  autoStart,
+  EmptyState,
+  placeholder = 'e.g. Senior backend jobs in Tel Aviv, Node.js or Go',
+}: Props) {
+  useEffect(() => {
+    chatContexts.set(chatKey, context);
+  }, [chatKey, context]);
+  // The history of this chat survives leaving the page (e.g. to a job and back) within this tab.
+  const storageKey = `${CHAT_STORAGE_PREFIX}${chatKey}`;
+  const [initialMessages] = useState(() => readSaved(storageKey));
+  const [transport] = useState(
+    () =>
+      new DefaultChatTransport<AssistantMessage>({
+        api: '/api/chat',
+        body: () => {
+          const current = chatContexts.get(chatKey);
+          return current ? { context: current } : {};
+        },
+      }),
+  );
   const { messages, sendMessage, status, stop, error, addToolApprovalResponse } = useChat<AssistantMessage>({
+    id: chatKey,
+    messages: initialMessages,
+    transport,
     // After you approve or decline (e.g. confirming experience), the agent continues on its own.
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
   });
@@ -38,6 +108,15 @@ export function AssistantChat() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const busy = status === 'submitted' || status === 'streaming';
+
+  useEffect(() => {
+    if (busy) return;
+    try {
+      sessionStorage.setItem(storageKey, JSON.stringify(messages));
+    } catch {
+      // Full or blocked storage: the chat still works, it just won't be restored.
+    }
+  }, [messages, busy, storageKey]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -67,9 +146,24 @@ export function AssistantChat() {
     sendMessage({ text });
   }, [busy, sendMessage]);
 
+  // Opened from "Tailor my CV": start right away, once, if this chat has no history yet.
+  // Scheduled rather than sent inline: in development React mounts twice and the chat aborts the first
+  // mount's request on cleanup, so only the mount that stays sends it.
+  const started = useRef(false);
+  useEffect(() => {
+    if (started.current || !autoStart || initialMessages.length > 0) return;
+    const timer = setTimeout(() => {
+      started.current = true;
+      sendMessage({ text: autoStart });
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [autoStart, initialMessages.length, sendMessage]);
+
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-4">
-      {messages.length === 0 ? (
+      {messages.length === 0 && EmptyState ? (
+        <EmptyState onAsk={send} />
+      ) : messages.length === 0 ? (
         <section className="flex flex-col gap-4 py-6">
           <div className="flex flex-col gap-1">
             <h1 className="font-heading text-2xl font-semibold">Find your next high-tech job</h1>
@@ -108,7 +202,6 @@ export function AssistantChat() {
                       part={part}
                       onAsk={send}
                       onApproval={(id, approved) => addToolApprovalResponse({ id, approved })}
-                      busy={busy}
                     />
                   ),
                 )
@@ -149,7 +242,7 @@ export function AssistantChat() {
               send(input);
             }
           }}
-          placeholder="e.g. Senior backend jobs in Tel Aviv, Node.js or Go"
+          placeholder={placeholder}
           rows={1}
           className="max-h-40 min-h-10 resize-none"
         />

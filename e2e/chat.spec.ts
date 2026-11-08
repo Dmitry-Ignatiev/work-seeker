@@ -22,9 +22,18 @@ test('describe a job, get job cards with links, then open one for details', asyn
   await expect(page.getByTestId('search-sources')).toContainText('Demo listings');
   await expect(page.getByTestId('assistant-message').last()).toContainText('Here are the jobs I found');
 
-  await card.getByRole('button', { name: 'Details' }).click();
-  await expect(page.getByText(/Read the full posting: Senior Backend Engineer \(Node\.js\)/)).toBeVisible();
-  await expect(page.getByTestId('assistant-message').last()).toContainText('solid backend experience');
+  // Details opens the job's own page: the posting, what it asks for, and a chat about this job.
+  await card.getByRole('link', { name: 'Details' }).click();
+  await expect(page).toHaveURL(/\/jobs\/[^/?]+$/);
+  await expect(page.getByRole('heading', { level: 1, name: 'Senior Backend Engineer (Node.js)' })).toBeVisible();
+  await expect(page.getByTestId('job-description')).toContainText('Build backend services in Node.js and TypeScript');
+  await expect(page.getByTestId('requirements')).toContainText('Node.js');
+  await expect(page.getByRole('button', { name: 'Tailor my CV for this job' })).toBeVisible();
+
+  // Back to search: the earlier results are still there.
+  await page.getByRole('link', { name: 'Back to search' }).click();
+  await expect(page).toHaveURL(/\/assistant$/);
+  await expect(page.getByLabel('Jobs found').getByRole('article', { name: 'Senior Backend Engineer (Node.js)' })).toBeVisible();
 });
 
 test('example prompts start a search', async ({ page }) => {

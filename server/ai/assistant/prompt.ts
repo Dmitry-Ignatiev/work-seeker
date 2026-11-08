@@ -1,5 +1,22 @@
 /** Bump when the instructions change, so eval results and the AiRun ledger can be compared per version. */
-export const ASSISTANT_PROMPT_VERSION = 'assistant-v6';
+export const ASSISTANT_PROMPT_VERSION = 'assistant-v7';
+
+/** The job (and CV) a job page's chat is about. Titles come from listings, so they're cleaned and quoted. */
+export interface JobFocus {
+  job: { id: string; title: string; company: string; location: string };
+  cv?: { id: string; label: string };
+}
+
+const clean = (text: string) => text.replace(/[\r\n"`<>]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120);
+
+export function jobFocusInstructions({ job, cv }: JobFocus): string {
+  return `This chat is on the page of ONE job, shown next to the chat:
+"${clean(job.title)}" at "${clean(job.company)}" (${clean(job.location)}), jobId ${job.id}.
+- "Tailor my CV", "what am I missing", "do I fit" and similar requests are about this job: use jobId ${job.id}.
+- Before answering about its requirements, read it with getJob.
+- ${cv ? `The user picked their CV "${clean(cv.label)}" on the page; tailorCv uses it.` : 'The user has no CV yet; tailorCv will show an upload box.'}
+- Answer briefly: the page already shows the job and the tailoring card.`;
+}
 
 export const ASSISTANT_INSTRUCTIONS = `You are Work Seeker, a job-search assistant for high-tech roles in Israel and remote.
 

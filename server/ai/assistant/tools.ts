@@ -114,8 +114,9 @@ export function createAssistantTools(deps: AssistantToolDeps = {}) {
         'backs them; code verifies every change. Takes 20–40 seconds. The user sees a before/after card with a DOCX download. ' +
         'Returns NEEDS_CV if the user has no CV yet (they then see an upload box).',
       inputSchema: z.object({ jobId: z.string().min(1).max(100) }),
-      contextSchema: userContext,
-      execute: async ({ jobId }, { context }) => tailorCvForJob(context.userId, jobId),
+      // The CV comes from the page (the user's pick), never from the model.
+      contextSchema: userContext.extend({ cvId: z.string().min(1).max(100).optional() }),
+      execute: async ({ jobId }, { context }) => tailorCvForJob(context.userId, jobId, context.cvId),
       toModelOutput: ({ output }) => ({
         type: 'text',
         value:

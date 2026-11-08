@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 import { signIn } from './helpers';
 
 test('save a recovery code at sign-up, then use it to reset a forgotten password', async ({ page }) => {
+  test.setTimeout(60_000); // a long flow: sign-up, sign-out, two reset attempts, two sign-ins
   const email = `reset-${Date.now()}@example.test`;
 
   // Sign up: the app offers a recovery code before the chat.
