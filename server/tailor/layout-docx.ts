@@ -117,7 +117,32 @@ export function applyEdits(input: LayoutDocxInput): { paragraphs: LayoutParagrap
     }
   }
 
-  return { paragraphs: paragraphs.filter((_, i) => !removed.has(i)), unplaced };
+  return { paragraphs: paragraphs.filter((_, i) => !removed.has(i)).map(linkEmails), unplaced };
+}
+
+const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
+
+/**
+ * Email addresses that aren't links yet become mailto: links. A PDF's link often misses the address
+ * (an icon beside it shifts the link box), and a mailto link only opens a new message, so it's always safe.
+ */
+export function linkEmails(p: LayoutParagraph): LayoutParagraph {
+  if (!p.runs.some(r => !r.url && r.text.includes('@'))) return p;
+  const runs: LayoutRun[] = [];
+  for (const run of p.runs) {
+    if (run.url) {
+      runs.push(run);
+      continue;
+    }
+    let last = 0;
+    for (const match of run.text.matchAll(EMAIL)) {
+      if (match.index > last) runs.push({ ...run, text: run.text.slice(last, match.index) });
+      runs.push({ ...run, text: match[0], url: `mailto:${match[0]}` });
+      last = match.index + match[0].length;
+    }
+    if (last < run.text.length) runs.push({ ...run, text: run.text.slice(last) });
+  }
+  return { ...p, runs };
 }
 
 const ALIGN = {

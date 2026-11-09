@@ -1,7 +1,9 @@
+import JSZip from 'jszip';
 import { describe, expect, it } from 'vitest';
 import { comparable, paragraphText, type CvLayout } from '@/server/cv/layout';
 import { extractPdfText } from '@/server/cv/pdf';
 import { plainTextLayout, templateLayout } from '@/server/tailor/fallback-layout';
+import { buildLayoutDocx } from '@/server/tailor/layout-docx';
 import { buildLayoutPdf, PdfNotSupportedError, standardFamily, toWinAnsi } from '@/server/tailor/layout-pdf';
 import { DESIGNED_CV_LINES, makePdf, SAMPLE_CV_LINES } from '../support/make-pdf';
 
@@ -60,6 +62,18 @@ describe('rebuilding a CV as a PDF from its layout', () => {
     const { links, layout } = await extractPdfText(new Uint8Array(buffer));
     expect(links.map(l => l.url)).toContain('mailto:dana.levi@example.com');
     expect(layout && find(layout, 'dana.levi@example.com').runs[0].url).toBe('mailto:dana.levi@example.com');
+  });
+
+  it('makes a plain email address a mailto link in the PDF and the DOCX', async () => {
+    const original = await layoutOf(makePdf([DESIGNED_CV_LINES]));
+    expect(find(original, 'dana.levi@example.com').runs.some(r => r.url)).toBe(false);
+    const { links } = await extractPdfText(new Uint8Array((await buildLayoutPdf({ layout: original, edits: [] })).buffer));
+    expect(links.map(l => l.url)).toContain('mailto:dana.levi@example.com');
+
+    const docx = await buildLayoutDocx({ layout: original, edits: [] });
+    const zip = await JSZip.loadAsync(docx.buffer);
+    expect(await zip.file('word/_rels/document.xml.rels')!.async('string')).toContain('mailto:dana.levi@example.com');
+    expect(await zip.file('word/document.xml')!.async('string')).toContain('+972 50 123 4567'); // the rest of the line stays
   });
 
   it('refuses Hebrew text, which the standard PDF fonts cannot draw', async () => {
