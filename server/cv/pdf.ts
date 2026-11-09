@@ -1,5 +1,5 @@
 import 'server-only';
-import { extractText, getDocumentProxy } from 'unpdf';
+import { extractText, getDocumentProxy, getResolvedPDFJS } from 'unpdf';
 import { alignLinkLabels, buildLayout, fontFamily, fontStyle, type CvLayout, type LayoutPage } from './layout';
 import { collectLinks, headerLinks, MAX_LINKS, normalizeLinkUrl, type CvLink, type RawLink } from './links';
 
@@ -123,7 +123,8 @@ async function readPages(pdf: Pdf): Promise<Pick<ExtractedCv, 'links' | 'layout'
       if (raw.length < MAX_LINKS * 4) for (const [url, rects] of rectsByUrl) raw.push({ url, anchor: textUnder(items, rects) });
       if (!layoutOk) continue;
 
-      await page.getOperatorList(); // loads the fonts, so their real names are known
+      const operators = await page.getOperatorList(); // also loads the fonts, so their real names are known
+      const icons = smallImages(operators, (await getResolvedPDFJS()).OPS);
       const fontNames = new Map<string, string>();
       const fontName = (id: string) => {
         if (!fontNames.has(id)) {
@@ -140,7 +141,7 @@ async function readPages(pdf: Pdf): Promise<Pick<ExtractedCv, 'links' | 'layout'
       pages.push({
         width: view[2] - view[0],
         height: view[3] - view[1],
-        items: items.map(item => {
+        items: attachIcons(icons, items).map(({ item, icon }) => {
           const pdfFont = fontName(item.fontName);
           const url = linkAt(rectsByUrl, item.transform[4], item.transform[4] + item.width, item.transform[5]);
           return {
@@ -154,6 +155,7 @@ async function readPages(pdf: Pdf): Promise<Pick<ExtractedCv, 'links' | 'layout'
             rtl: item.dir === 'rtl',
             // Only web and email links, the same ones collectLinks keeps.
             url: url ? (normalizeLinkUrl(url) ?? undefined) : undefined,
+            icon,
           };
         }),
       });
@@ -169,6 +171,59 @@ async function readPages(pdf: Pdf): Promise<Pick<ExtractedCv, 'links' | 'layout'
     return { links, layout: alignLinkLabels(result.layout, labelled) };
   }
   return { links, layout: null, layoutNote: result.reason === 'MULTI_COLUMN' ? 'MULTI_COLUMN' : undefined };
+}
+
+interface PdfImage {
+  x: number;
+  y: number;
+  size: number;
+}
+
+/** Images drawn about text-sized (icons, not photos or logos), from the page's drawing operators. */
+function smallImages(list: { fnArray: number[]; argsArray: unknown[] }, ops: Record<string, number>): PdfImage[] {
+  const multiply = (a: number[], b: number[]) => [
+    a[0] * b[0] + a[2] * b[1],
+    a[1] * b[0] + a[3] * b[1],
+    a[0] * b[2] + a[2] * b[3],
+    a[1] * b[2] + a[3] * b[3],
+    a[0] * b[4] + a[2] * b[5] + a[4],
+    a[1] * b[4] + a[3] * b[5] + a[5],
+  ];
+  const images: PdfImage[] = [];
+  const stack: number[][] = [];
+  let ctm = [1, 0, 0, 1, 0, 0];
+  list.fnArray.forEach((fn, i) => {
+    if (fn === ops.save) stack.push(ctm);
+    else if (fn === ops.restore) ctm = stack.pop() ?? ctm;
+    else if (fn === ops.transform) ctm = multiply(ctm, list.argsArray[i] as number[]);
+    else if (fn === ops.paintImageXObject || fn === ops.paintInlineImageXObject || fn === ops.paintImageMaskXObject) {
+      const width = Math.hypot(ctm[0], ctm[1]);
+      const height = Math.hypot(ctm[2], ctm[3]);
+      if (width >= 4 && height >= 4 && width <= 30 && height <= 30 && Math.max(width, height) <= 2 * Math.min(width, height)) {
+        images.push({ x: ctm[4], y: ctm[5], size: Math.round(height * 10) / 10 });
+      }
+    }
+  });
+  return images.slice(0, 20);
+}
+
+/** Each icon belongs to the nearest text on its line that starts right after it. */
+function attachIcons(icons: PdfImage[], items: TextItem[]): { item: TextItem; icon?: number }[] {
+  const out: { item: TextItem; icon?: number }[] = items.map(item => ({ item }));
+  for (const icon of icons) {
+    const middle = icon.y + icon.size / 2;
+    let best: { item: TextItem; icon?: number } | undefined;
+    for (const entry of out) {
+      const { transform, str } = entry.item;
+      const size = Math.hypot(transform[0], transform[1]) || Math.abs(transform[3]);
+      const [x, y] = [transform[4], transform[5]];
+      const sameLine = middle >= y - 0.4 * size && middle <= y + 1.3 * size && icon.size <= 3 * size;
+      const after = x >= icon.x + icon.size * 0.5 && x - (icon.x + icon.size) <= 2 * size + 6;
+      if (sameLine && after && str.trim() && !entry.icon && (!best || x < best.item.transform[4])) best = entry;
+    }
+    if (best) best.icon = icon.size;
+  }
+  return out;
 }
 
 /** The link whose rectangles cover most of this piece of text, if any (a click area that merely grazes it doesn't count). */

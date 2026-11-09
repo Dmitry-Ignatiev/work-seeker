@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { comparable, paragraphText, type CvLayout } from '@/server/cv/layout';
 import { extractPdfText } from '@/server/cv/pdf';
 import { plainTextLayout, templateLayout } from '@/server/tailor/fallback-layout';
+import { iconKind } from '@/server/tailor/icon-kind';
 import { buildLayoutDocx } from '@/server/tailor/layout-docx';
 import { buildLayoutPdf, PdfNotSupportedError, standardFamily, toWinAnsi } from '@/server/tailor/layout-pdf';
 import { DESIGNED_CV_LINES, makePdf, SAMPLE_CV_LINES } from '../support/make-pdf';
@@ -74,6 +75,30 @@ describe('rebuilding a CV as a PDF from its layout', () => {
     const zip = await JSZip.loadAsync(docx.buffer);
     expect(await zip.file('word/_rels/document.xml.rels')!.async('string')).toContain('mailto:dana.levi@example.com');
     expect(await zip.file('word/document.xml')!.async('string')).toContain('+972 50 123 4567'); // the rest of the line stays
+  });
+
+  it('draws the icons the PDF had in front of the email and LinkedIn, and none for unknown text', async () => {
+    const run = (text: string, extra = {}) => ({ text, font: 'Calibri', size: 11, ...extra });
+    expect(iconKind([run('dana.levi@example.com')], 0)).toBe('email');
+    expect(iconKind([run(' '), run('LinkedIn', { url: 'https://www.linkedin.com/in/dana' })], 0)).toBe('linkedin');
+    expect(iconKind([run('+972 50 123 4567 |')], 0)).toBe('phone');
+    expect(iconKind([run('Portfolio', { url: 'https://dana.dev' })], 0)).toBe('link');
+    expect(iconKind([run('Built TypeScript dashboards')], 0)).toBeNull();
+
+    const original = await layoutOf(makePdf([DESIGNED_CV_LINES]));
+    const contact = find(original, 'dana.levi@example.com');
+    contact.runs = [{ ...contact.runs[0], icon: 11 }];
+    const bullet = find(original, 'Built TypeScript');
+    bullet.runs = [{ ...bullet.runs[0], icon: 11 }]; // an image bullet: no icon drawn
+
+    const docx = await JSZip.loadAsync((await buildLayoutDocx({ layout: original, edits: [] })).buffer);
+    expect(Object.keys(docx.files).filter(f => f.startsWith('word/media/') && !docx.files[f].dir)).toHaveLength(1);
+
+    const pdf = await buildLayoutPdf({ layout: original, edits: [] });
+    const { getDocumentProxy, getResolvedPDFJS } = await import('unpdf');
+    const { OPS } = await getResolvedPDFJS();
+    const ops = await (await (await getDocumentProxy(new Uint8Array(pdf.buffer))).getPage(1)).getOperatorList();
+    expect(ops.fnArray.filter((f: number) => f === OPS.paintImageXObject)).toHaveLength(1);
   });
 
   it('refuses Hebrew text, which the standard PDF fonts cannot draw', async () => {

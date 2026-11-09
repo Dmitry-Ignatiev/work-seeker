@@ -17,6 +17,8 @@ export interface LayoutItem {
   italic: boolean;
   rtl: boolean;
   url?: string;
+  /** A small image (icon) drawn just before this text, in points: an envelope before the email and the like. */
+  icon?: number;
 }
 
 export interface LayoutPage {
@@ -33,6 +35,8 @@ export interface LayoutRun {
   bold?: boolean;
   italic?: boolean;
   url?: string;
+  /** An icon goes before this run, this many points tall (the PDF had one there). */
+  icon?: number;
 }
 
 export interface LayoutParagraph {
@@ -112,6 +116,7 @@ export function fontStyle(pdfName: string): { bold: boolean; italic: boolean } {
 }
 
 const sameStyle = (a: LayoutRun, b: LayoutRun) =>
+  !b.icon &&
   a.font === b.font && a.size === b.size && !!a.bold === !!b.bold && !!a.italic === !!b.italic && a.url === b.url;
 
 /** Joins positioned items into styled runs, putting back the spaces the PDF encodes as gaps. */
@@ -125,7 +130,15 @@ function toRuns(items: LayoutItem[]): { runs: LayoutRun[]; chars: number } {
       const gap = item.x - (prev.x + prev.width);
       if (gap > item.size * 0.18 && !/\s$/.test(prev.str) && !/^\s/.test(text)) text = ` ${text}`;
     }
-    const run: LayoutRun = { text, font: item.font, size: round(item.size), bold: item.bold || undefined, italic: item.italic || undefined, url: item.url };
+    const run: LayoutRun = {
+      text,
+      font: item.font,
+      size: round(item.size),
+      bold: item.bold || undefined,
+      italic: item.italic || undefined,
+      url: item.url,
+      icon: item.icon,
+    };
     const last = runs.at(-1);
     if (last && sameStyle(last, run)) last.text += text;
     else runs.push(run);
@@ -366,7 +379,9 @@ function setUrl(runs: LayoutRun[], start: number, end: number, url: string | und
     const cuts = [runStart, Math.min(Math.max(start, runStart), runEnd), Math.min(Math.max(end, runStart), runEnd), runEnd];
     for (let i = 0; i < 3; i++) {
       if (cuts[i + 1] <= cuts[i]) continue;
-      const piece: LayoutRun = { ...run, text: run.text.slice(cuts[i] - runStart, cuts[i + 1] - runStart) };
+      // The run's icon stays in front of its first piece only.
+      const icon = cuts[i] === runStart ? run.icon : undefined;
+      const piece: LayoutRun = { ...run, icon, text: run.text.slice(cuts[i] - runStart, cuts[i + 1] - runStart) };
       if (i === 1) piece.url = url;
       const tail = out.at(-1);
       if (tail && sameStyle(tail, piece)) tail.text += piece.text;

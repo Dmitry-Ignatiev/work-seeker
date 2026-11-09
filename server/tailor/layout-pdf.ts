@@ -10,9 +10,12 @@ import {
   setCharacterSqueeze,
   StandardFonts,
   type PDFFont,
+  type PDFImage,
   type PDFPage,
 } from 'pdf-lib';
 import type { LayoutParagraph, LayoutRun } from '@/server/cv/layout';
+import { iconKind } from './icon-kind';
+import { ICON_PNGS, type IconKind } from './icons';
 import { applyEdits, type LayoutDocxInput, type LayoutDocxResult } from './layout-docx';
 
 /**
@@ -102,6 +105,8 @@ const HEBREW = /[֐-׿]/;
 const LINK_COLOR = rgb(0x05 / 255, 0x63 / 255, 0xc1 / 255);
 const SAFE_URL = /^(https?:|mailto:)/i;
 const MIN_SQUEEZE = 0.86;
+/** An icon and the gap after it, as a multiple of its size. */
+const ICON_GAP = 1.25;
 
 interface Piece {
   text: string;
@@ -110,6 +115,8 @@ interface Piece {
   width: number;
   space: boolean;
   url?: string;
+  /** An icon drawn in front of this word (its width is included). */
+  icon?: { image: PDFImage; size: number };
 }
 
 export async function buildLayoutPdf(input: LayoutDocxInput & { title?: string }): Promise<LayoutDocxResult> {
@@ -140,16 +147,32 @@ export async function buildLayoutPdf(input: LayoutDocxInput & { title?: string }
     top = pageHeight - marginTop;
   };
 
+  const images = new Map<IconKind, PDFImage>();
+  const imageFor = async (kind: IconKind) => {
+    if (!images.has(kind)) images.set(kind, await doc.embedPng(Buffer.from(ICON_PNGS[kind], 'base64')));
+    return images.get(kind)!;
+  };
+
   const piecesOf = async (runs: LayoutRun[]): Promise<Piece[]> => {
     const pieces: Piece[] = [];
-    for (const run of runs) {
+    // An icon waits for the next word, so it never sits alone at the end of a line.
+    let pending: Piece['icon'];
+    for (const [i, run] of runs.entries()) {
       const font = await fontFor(run);
       const url = run.url && SAFE_URL.test(run.url) ? run.url : undefined;
+      const kind = run.icon ? iconKind(runs, i) : null;
+      if (kind) pending = { image: await imageFor(kind), size: run.icon! };
       for (const token of toWinAnsi(run.text).split(/(\s+)/)) {
         if (!token) continue;
         const space = /^\s+$/.test(token);
         const text = space ? ' ' : token;
-        pieces.push({ text, font, size: run.size, width: font.widthOfTextAtSize(text, run.size), space, url });
+        const piece: Piece = { text, font, size: run.size, width: font.widthOfTextAtSize(text, run.size), space, url };
+        if (pending && !space) {
+          piece.icon = pending;
+          piece.width += pending.size * ICON_GAP;
+          pending = undefined;
+        }
+        pieces.push(piece);
       }
     }
     return pieces;
@@ -202,16 +225,22 @@ export async function buildLayoutPdf(input: LayoutDocxInput & { title?: string }
   const drawPieces = (pieces: Piece[], x: number, baseline: number, gap = 0, squeeze = 1) => {
     for (const piece of pieces) {
       const width = piece.width * squeeze + (piece.space ? gap : 0);
+      if (piece.icon) {
+        const { image, size } = piece.icon;
+        page.drawImage(image, { x, y: baseline - size * 0.22, width: size, height: size });
+        x += size * ICON_GAP * squeeze;
+      }
+      const textWidth = width - (piece.icon ? piece.icon.size * ICON_GAP * squeeze : 0);
       if (!piece.space) {
         if (squeeze < 1) page.pushOperators(pushGraphicsState(), setCharacterSqueeze(squeeze * 100));
         page.drawText(piece.text, { x, y: baseline, size: piece.size, font: piece.font, color: piece.url ? LINK_COLOR : undefined });
         if (squeeze < 1) page.pushOperators(popGraphicsState());
       }
       if (piece.url) {
-        page.drawLine({ start: { x, y: baseline - 1.2 }, end: { x: x + width, y: baseline - 1.2 }, thickness: 0.5, color: LINK_COLOR });
-        addLink(x, baseline - 2, x + width, baseline + piece.size * 0.8, piece.url);
+        page.drawLine({ start: { x, y: baseline - 1.2 }, end: { x: x + textWidth, y: baseline - 1.2 }, thickness: 0.5, color: LINK_COLOR });
+        addLink(x, baseline - 2, x + textWidth, baseline + piece.size * 0.8, piece.url);
       }
-      x += width;
+      x += textWidth;
     }
   };
   const widthOf = (pieces: Piece[]) => pieces.reduce((sum, p) => sum + p.width, 0);

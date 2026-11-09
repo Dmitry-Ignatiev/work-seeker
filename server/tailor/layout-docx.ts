@@ -3,6 +3,7 @@ import {
   AlignmentType,
   Document,
   ExternalHyperlink,
+  ImageRun,
   LineRuleType,
   Packer,
   Paragraph,
@@ -13,6 +14,8 @@ import {
 } from 'docx';
 import { comparable, paragraphText, stripBullet, type CvLayout, type LayoutParagraph, type LayoutRun } from '@/server/cv/layout';
 import { DOCX_SETTINGS } from './docx-settings';
+import { iconKind } from './icon-kind';
+import { ICON_PNGS } from './icons';
 
 /**
  * Rebuilds the user's own CV as a DOCX from its layout (server/cv/layout.ts): same page size, margins, fonts,
@@ -135,12 +138,15 @@ export function linkEmails(p: LayoutParagraph): LayoutParagraph {
       continue;
     }
     let last = 0;
+    const start = runs.length;
     for (const match of run.text.matchAll(EMAIL)) {
       if (match.index > last) runs.push({ ...run, text: run.text.slice(last, match.index) });
       runs.push({ ...run, text: match[0], url: `mailto:${match[0]}` });
       last = match.index + match[0].length;
     }
     if (last < run.text.length) runs.push({ ...run, text: run.text.slice(last) });
+    // The run's icon stays in front of its first piece only.
+    for (let i = start + 1; i < runs.length; i++) runs[i] = { ...runs[i], icon: undefined };
   }
   return { ...p, runs };
 }
@@ -174,6 +180,20 @@ export async function buildLayoutDocx(input: LayoutDocxInput): Promise<LayoutDoc
     });
     return r.url ? new ExternalHyperlink({ link: r.url, children: [text] }) : text;
   };
+  /** A run, after the icon the PDF had in front of it (if it's one we can draw). */
+  const runsOf = (runs: LayoutRun[]): ParagraphChild[] =>
+    runs.flatMap((r, i) => {
+      const kind = r.icon ? iconKind(runs, i) : null;
+      if (!kind) return [run(r)];
+      const pixels = Math.round((r.icon! * 96) / 72);
+      const image = new ImageRun({
+        type: 'png',
+        data: Buffer.from(ICON_PNGS[kind], 'base64'),
+        transformation: { width: pixels, height: pixels },
+        altText: { name: kind, description: kind, title: kind },
+      });
+      return [image, ...(/^\s/.test(r.text) ? [] : [new TextRun({ text: ' ', font: r.font, size: halfPoints(r.size) })]), run(r)];
+    });
 
   const seenPages = new Set<number>([0]);
   const children = paragraphs.map(p => {
@@ -187,9 +207,9 @@ export async function buildLayoutDocx(input: LayoutDocxInput): Promise<LayoutDoc
     } else if (p.indent > 1.5) {
       indent = { left: twips(p.indent) };
     }
-    kids.push(...p.runs.map(run));
+    kids.push(...runsOf(p.runs));
     if (p.aside?.length) {
-      kids.push(new TextRun({ children: [new Tab()] }), ...p.aside.map(run));
+      kids.push(new TextRun({ children: [new Tab()] }), ...runsOf(p.aside));
       tabStops.push({ type: TabStopType.RIGHT, position: twips(contentWidth) });
     }
     const newPage = !seenPages.has(p.page);
