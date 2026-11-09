@@ -22,8 +22,8 @@ test('describe a job, get job cards with links, then open one for details', asyn
   await expect(page.getByTestId('search-sources')).toContainText('Demo listings');
   await expect(page.getByTestId('assistant-message').last()).toContainText('Here are the jobs I found');
 
-  // Details opens the job's own page: the posting, what it asks for, and a chat about this job.
-  await card.getByRole('link', { name: 'Details' }).click();
+  // The title opens the job's own page: the posting, what it asks for, and a chat about this job.
+  await card.getByRole('link', { name: 'Senior Backend Engineer (Node.js)' }).click();
   await expect(page).toHaveURL(/\/jobs\/[^/?]+$/);
   await expect(page.getByRole('heading', { level: 1, name: 'Senior Backend Engineer (Node.js)' })).toBeVisible();
   await expect(page.getByTestId('job-description')).toContainText('Build backend services in Node.js and TypeScript');
