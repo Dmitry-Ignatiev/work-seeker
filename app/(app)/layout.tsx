@@ -1,8 +1,8 @@
-import { SearchIcon } from 'lucide-react';
 import Link from 'next/link';
 import { Suspense } from 'react';
 import { AppNav } from '@/components/app-nav';
 import { UserMenu } from '@/components/auth/user-menu';
+import { LogoMark } from '@/components/brand/logo-mark';
 
 export default function AppLayout({ children }: LayoutProps<'/'>) {
   return (
@@ -11,7 +11,7 @@ export default function AppLayout({ children }: LayoutProps<'/'>) {
         <div className="mx-auto flex h-16 w-full max-w-6xl items-center gap-3 px-4 sm:gap-6">
           <Link href="/assistant" className="flex shrink-0 items-center gap-2.5 font-heading text-[17px] font-semibold tracking-tight">
             <span className="flex size-8 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-blue-500 text-primary-foreground shadow-sm shadow-primary/30">
-              <SearchIcon className="size-4" strokeWidth={2.2} aria-hidden />
+              <LogoMark className="size-5" />
             </span>
             <span className="hidden sm:inline">Work Seeker</span>
           </Link>
