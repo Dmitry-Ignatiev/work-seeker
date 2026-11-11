@@ -64,8 +64,26 @@ jobs:
       - name: Integration tests
         run: npm run test:integration
 
+      # The browser comes from cdn.playwright.dev and is cached per lockfile. System libraries come from the
+      # runner image; apt (archive.ubuntu.com) is only used if Chromium can't start without it. `--with-deps`
+      # used to apt-install 9 optional font packages on every run, so an Ubuntu mirror outage failed CI.
+      - name: Cache Playwright browser
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
       - name: Install Playwright browser
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install chromium
+
+      - name: Install system libraries (only if Chromium can't start)
+        run: |
+          if node -e "require('playwright').chromium.launch().then(b => b.close())"; then
+            echo "Chromium starts with the runner image's libraries; skipping apt."
+          else
+            echo 'Acquire::Retries "5";' | sudo tee /etc/apt/apt.conf.d/80-retries
+            npx playwright install-deps chromium
+          fi
 
       - name: End-to-end tests
         run: npm run test:e2e
