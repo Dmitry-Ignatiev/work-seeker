@@ -11,7 +11,6 @@ import { politeFetch } from '@/server/discovery/net/polite-fetch';
 import { needsPaste, normalizeUrl } from '@/server/discovery/normalize-url';
 import { jobFingerprint, rankJobs, titleSearchWords, type Seniority } from '@/server/discovery/ranking';
 import { enabledSources } from '@/server/discovery/registry';
-import { fetchGotFriendsJob, GOTFRIENDS_COMPANY } from '@/server/discovery/scrape/gotfriends';
 import { fixtureJobs } from '@/server/discovery/sources/fixture';
 import { htmlToText } from '@/server/discovery/text';
 import type { Job, SourceAdapter } from '@/server/discovery/types';
@@ -33,7 +32,6 @@ const DB_SOURCE: Record<Job['source'], DbJobSource> = {
   remoteok: 'REMOTEOK',
   adzuna: 'ADZUNA',
   jsearch: 'JSEARCH',
-  gotfriends: 'GOTFRIENDS',
   greenhouse: 'GREENHOUSE',
   lever: 'LEVER',
   ashby: 'ASHBY',
@@ -359,7 +357,6 @@ export async function searchJobs(
   const ranked = rankJobs(filtered, {
     query: [query, wantedPlace].filter(Boolean).join(' '),
     seniority: input.seniority,
-    topicalSources: new Set(['gotfriends']),
   }).slice(0, Math.min(input.limit ?? 12, 25));
 
   for (const { job } of ranked) {
@@ -393,25 +390,9 @@ export async function getJobSummary(userId: string, jobId: string): Promise<JobS
   return toSummary(await getJobForUser(userId, jobId));
 }
 
-/**
- * GotFriends listings carry a short summary; the job page has the requirements.
- * Fetches it once (politely) and stores the full text.
- */
+/** The job with its full description (every current source stores the full text when it's found). */
 export async function loadFullJob(userId: string, jobId: string) {
-  const job = await getJobForUser(userId, jobId);
-  if (job.source !== 'GOTFRIENDS' || !job.canonicalUrl || /דרישות|requirements/i.test(job.descriptionText)) return job;
-  try {
-    const page = await fetchGotFriendsJob(job.canonicalUrl);
-    if (!page.description || page.description.length <= job.descriptionText.length) return job;
-    const descriptionText = page.description.slice(0, MAX_DESCRIPTION);
-    return await db.job.update({
-      where: { id: job.id },
-      // New text: its keywords must be extracted again.
-      data: { descriptionText, contentHash: sha256(descriptionText), location: page.location ?? job.location, extractionStatus: 'PENDING' },
-    });
-  } catch {
-    return job; // The summary is still usable.
-  }
+  return getJobForUser(userId, jobId);
 }
 
 /** Adds a job from a link. Blocked sites, client-rendered pages and thin pages ask for a paste instead. */
@@ -440,25 +421,6 @@ export async function addJobFromUrl(userId: string, rawUrl: string): Promise<Add
       );
       if (job) {
         const [id] = await upsertJobs([job]);
-        return { status: 'OK', job: await getJobSummary(userId, id) };
-      }
-    }
-    if (detected?.kind === 'gotfriends' && detected.jobId) {
-      const page = await fetchGotFriendsJob(url.toString());
-      if (page.title && page.description) {
-        const [id] = await upsertJobs([
-          {
-            id: `gotfriends:${detected.jobId}`,
-            source: 'gotfriends',
-            title: page.title,
-            company: GOTFRIENDS_COMPANY,
-            location: page.location ?? 'Israel',
-            remote: isRemoteLocation(page.location),
-            tags: [],
-            url: url.toString(),
-            description: page.description,
-          },
-        ]);
         return { status: 'OK', job: await getJobSummary(userId, id) };
       }
     }

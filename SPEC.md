@@ -10,7 +10,6 @@
 
 | Source | How |
 | --- | --- |
-| GotFriends | polite scrape of category pages (robots.txt allows; `JobPosting` JSON-LD) |
 | Company boards on Greenhouse, Lever, Ashby | official public APIs, a seeded list of Israeli tech companies, plus companies you follow |
 | JSearch (Google for Jobs) | optional, needs a free RapidAPI key |
 | Remote OK, Arbeitnow | official APIs, remote roles |

@@ -1,10 +1,9 @@
 import type { Ats } from './boards';
 
 export type DetectedSource =
-  | { kind: 'board'; ats: Ats; slug: string; jobId?: string }
-  | { kind: 'gotfriends'; jobId?: string };
+  { kind: 'board'; ats: Ats; slug: string; jobId?: string };
 
-/** Recognises company-board and GotFriends links (pure). Returns null for anything else. */
+/** Recognises company-board links (pure). Returns null for anything else. */
 export function detectJobSource(url: URL): DetectedSource | null {
   const host = url.hostname.toLowerCase().replace(/^www\./, '');
   const segments = url.pathname.split('/').filter(Boolean);
@@ -25,10 +24,6 @@ export function detectJobSource(url: URL): DetectedSource | null {
   if (host === 'jobs.ashbyhq.com') {
     if (!segments[0]) return null;
     return { kind: 'board', ats: 'ashby', slug: segments[0], jobId: segments[1] };
-  }
-  if (host === 'gotfriends.co.il' && segments[0] === 'jobslobby') {
-    const last = segments.at(-1);
-    return { kind: 'gotfriends', jobId: last && /^\d+$/.test(last) ? last : undefined };
   }
   return null;
 }

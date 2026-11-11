@@ -5,7 +5,6 @@ import { extractJobPostings, jobLocationText } from '@/server/discovery/jsonld';
 import { isIsraelLocation, isRemoteLocation } from '@/server/discovery/location';
 import { needsPaste, normalizeUrl } from '@/server/discovery/normalize-url';
 import { jobFingerprint, rankJobs, titleMatchesRole, titleSearchWords, wantedSeniority } from '@/server/discovery/ranking';
-import { pagesForQuery, parseGotFriendsJobPage, parseGotFriendsListing } from '@/server/discovery/scrape/gotfriends';
 import { htmlToText } from '@/server/discovery/text';
 import type { Job } from '@/server/discovery/types';
 
@@ -24,45 +23,13 @@ const posting = (id: number, title: string, description = 'תיאור קצר ש�
   "url": "https://www.gotfriends.co.il/jobslobby/software/backend-developer/${id}/"
 }`;
 
-// GotFriends puts several objects in one script tag, separated by commas (not valid JSON on its own).
+// Some sites put several objects in one script tag, separated by commas (not valid JSON on its own).
 const JSONLD_JOBS = `<html><head>
 <script type="application/ld+json">{ "@context": "https://schema.org", "@type": "Organization", "name": "Gotfriends" }</script>
 <script type="application/ld+json">
 ${posting(100001, 'Backend Developer בחברת סייבר', 'פיתוח ב-Go &amp; Kubernetes')},
 ${posting(100002, 'Senior Node.js Engineer')}
 </script></head><body>…</body></html>`;
-
-const card = (id: number, title: string, location: string, body: string) => `
-<div class="item"> <a href="/jobslobby/software/backend-developer/${id}/" class="position p-1108"> <h2 class="title">${title}</h2> </a>
- <strong class="hotornot ir">משרה חמה</strong>
- <div class="item_content"><div class="inner"><section class="info meta"><dl><dd>
- <span class="info-label">מיקום:</span> <span class="info-data"> ${location} </span>
- </dd></dl></section>
- <div class="desc"> <div class="title_c">תיאור המשרה:</div> ${body}
- <div class="x Models.Jobsprofessionarea>.Id">מס&#x27; משרה: ${id}</div>
- <div class="bottom"> <button class="popupHpOpen button">שלחו קורות חיים עכשיו</button> </div>
- </div></div></div>`;
-
-// Role pages: the real jobs are HTML cards; their JSON-LD lists categories (no job number), which must be ignored.
-const LISTING = `<html><head><script type="application/ld+json">
-{ "@type": "JobPosting", "title": "SRE", "identifier": { "name": "Gotfriends", "value": null }, "url": "https://www.gotfriends.co.il/jobslobby/system/sre/" }
-</script></head><body><div class="list panel">
-${card(155417, 'Backend Developer בחברת סייבר', 'ת&quot;א והמרכז', 'פיתוח ב-Go &amp; Kubernetes.<br /><br />דרישות המשרה:<br />- 3 שנות ניסיון ב-Go<br />- ניסיון עם Kubernetes')}
-${card(155418, 'Senior Node.js Engineer', 'חיפה והצפון', 'צוות קטן.<br />דרישות המשרה:<br />- Node.js')}
-</div><footer>…</footer></body></html>`;
-
-const JOB_PAGE = `<html><head><script type="application/ld+json">${posting(100001, 'Backend Developer בחברת סייבר')}</script>
-<style>.x{}</style></head><body>
-<nav>דף הבית &gt; דרושים הייטק</nav>
-<h1>Backend Developer בחברת סייבר</h1>
-<div>מיקום:</div><div> ת&quot;א והמרכז</div>
-<div>תיאור המשרה:</div>
-<div>החברה מפתחת פלטפורמת אבטחה.</div>
-<div>דרישות המשרה:</div><ul><li>- 3 שנות ניסיון ב-Go</li><li>- ניסיון עם Kubernetes</li></ul>
-<span class="x.Id">מס&#x27; משרה: 100001</span>
-<div>שלחו קורות חיים עכשיו</div>
-<div>משרות נוספות: Frontend…</div>
-</body></html>`;
 
 describe('JSON-LD', () => {
   it('reads comma-separated objects in one script tag, and @graph', () => {
@@ -79,45 +46,6 @@ describe('JSON-LD', () => {
   it('formats schema.org locations', () => {
     expect(jobLocationText({ address: { addressCountry: 'IL' } })).toBe('Israel');
     expect(jobLocationText([{ address: { addressLocality: 'Tel Aviv', addressCountry: 'IL' } }])).toBe('Tel Aviv, Israel');
-  });
-});
-
-describe('GotFriends', () => {
-  it('maps queries to role pages, best match first', () => {
-    expect(pagesForQuery('Senior backend engineer')[0]).toBe('/jobslobby/software/backend-developer/');
-    expect(pagesForQuery('DevOps with Kubernetes')).toContain('/jobslobby/system/devops-positions/');
-    expect(pagesForQuery('מפתח פולסטאק')[0]).toBe('/jobslobby/software/full-stack-developer/');
-    expect(pagesForQuery('QA automation')).toEqual(['/jobslobby/qa/automation-developer/', '/jobslobby/qa/qa-positions/']);
-    expect(pagesForQuery('something unusual')).toEqual(['/jobslobby/software/']);
-    expect(pagesForQuery('react node full stack typescript python').length).toBeLessThanOrEqual(2);
-  });
-
-  it('parses job cards with location and the full description, ignoring category JSON-LD', () => {
-    const jobs = parseGotFriendsListing(LISTING);
-    expect(jobs.map(j => j.id)).toEqual(['gotfriends:155417', 'gotfriends:155418']);
-    expect(jobs[0]).toMatchObject({
-      source: 'gotfriends',
-      title: 'Backend Developer בחברת סייבר',
-      location: 'ת"א והמרכז',
-      url: 'https://www.gotfriends.co.il/jobslobby/software/backend-developer/155417/',
-    });
-    expect(jobs[0].description).toBe('פיתוח ב-Go & Kubernetes.\nדרישות המשרה:\n- 3 שנות ניסיון ב-Go\n- ניסיון עם Kubernetes');
-    expect(jobs[1].location).toBe('חיפה והצפון');
-  });
-
-  it('falls back to JSON-LD entries that link to real jobs', () => {
-    const jobs = parseGotFriendsListing(JSONLD_JOBS);
-    expect(jobs.map(j => j.id)).toEqual(['gotfriends:100001', 'gotfriends:100002']);
-    expect(jobs[0]).toMatchObject({ location: 'Israel', postedAt: '2026-11-05', description: 'פיתוח ב-Go & Kubernetes' });
-  });
-
-  it('reads location and full description with requirements from the job page', () => {
-    const page = parseGotFriendsJobPage(JOB_PAGE);
-    expect(page.location).toBe('ת"א והמרכז');
-    expect(page.description).toContain('החברה מפתחת פלטפורמת אבטחה.');
-    expect(page.description).toContain('3 שנות ניסיון ב-Go');
-    expect(page.description).not.toContain('משרות נוספות');
-    expect(page.title).toBe('Backend Developer בחברת סייבר');
   });
 });
 
@@ -167,14 +95,14 @@ describe('company boards', () => {
     expect(isIsraelLocation(job.location)).toBe(true);
   });
 
-  it('detects board and GotFriends links', () => {
+  it('detects company board links', () => {
     const d = (u: string) => detectJobSource(new URL(u));
     expect(d('https://boards.greenhouse.io/riskified/jobs/8725597002')).toEqual({ kind: 'board', ats: 'greenhouse', slug: 'riskified', jobId: '8725597002' });
     expect(d('https://job-boards.greenhouse.io/wizinc')).toEqual({ kind: 'board', ats: 'greenhouse', slug: 'wizinc', jobId: undefined });
     expect(d('https://boards.greenhouse.io/embed/job_app?for=taboola&token=123')).toMatchObject({ slug: 'taboola', jobId: '123' });
     expect(d('https://jobs.lever.co/walkme/6ed7-uuid')).toMatchObject({ ats: 'lever', slug: 'walkme', jobId: '6ed7-uuid' });
     expect(d('https://jobs.ashbyhq.com/lemonade')).toMatchObject({ ats: 'ashby', slug: 'lemonade' });
-    expect(d('https://www.gotfriends.co.il/jobslobby/software/frontend-developer/155470/')).toEqual({ kind: 'gotfriends', jobId: '155470' });
+    expect(d('https://www.gotfriends.co.il/jobslobby/software/frontend-developer/155470/')).toBeNull();
     expect(d('https://example.com/careers')).toBeNull();
   });
 });
@@ -285,10 +213,10 @@ describe('ranking', () => {
   });
 
   it('keeps Hebrew-only titles from role pages, but checks their English titles like any other', () => {
-    const topicalSources = new Set<Job['source']>(['gotfriends']);
-    const hebrew = job({ source: 'gotfriends', title: 'מפתח/ת צד שרת' });
-    const wrongRole = job({ source: 'gotfriends', title: 'Backend Engineer בחברת סטארט-אפ' });
-    const rightRole = job({ source: 'gotfriends', title: 'Full Stack Software Engineer בחברת סטארט-אפ' });
+    const topicalSources = new Set<Job['source']>(['lever']);
+    const hebrew = job({ source: 'lever', title: 'מפתח/ת צד שרת' });
+    const wrongRole = job({ source: 'lever', title: 'Backend Engineer בחברת סטארט-אפ' });
+    const rightRole = job({ source: 'lever', title: 'Full Stack Software Engineer בחברת סטארט-אפ' });
     expect(rankJobs([hebrew], { query: 'backend', topicalSources })).toHaveLength(1);
     expect(rankJobs([hebrew], { query: 'backend' })).toHaveLength(0);
     expect(rankJobs([wrongRole, rightRole], { query: 'full stack developer', topicalSources }).map(r => r.job)).toEqual([rightRole]);

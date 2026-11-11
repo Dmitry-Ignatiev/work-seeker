@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-const SOURCES = ['GotFriends', 'Greenhouse', 'Lever', 'Ashby', 'Remote OK', 'Arbeitnow'];
+const SOURCES = ['Greenhouse', 'Lever', 'Ashby', 'Remote OK', 'Arbeitnow'];
 
 const STEPS = [
   {
@@ -45,7 +45,7 @@ function ExamplePreview() {
             <p className="text-sm text-muted-foreground">Example company · Tel Aviv · Hybrid</p>
           </div>
           <span className="rounded-md bg-secondary px-2 py-0.5 text-xs font-medium whitespace-nowrap text-secondary-foreground">
-            GotFriends
+            Company careers page
           </span>
         </div>
         <div className="flex flex-col gap-1.5">
