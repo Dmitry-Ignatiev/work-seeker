@@ -29,7 +29,7 @@ function ActiveNav() {
 
 function NavLinks({ pathname }: { pathname: string | null }) {
   return (
-    <nav aria-label="Main" className="flex gap-1 overflow-x-auto">
+    <nav aria-label="Main" className="flex shrink-0 gap-1 rounded-full bg-muted/70 p-1">
       {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
         const active = pathname !== null && (pathname === href || pathname.startsWith(`${href}/`));
         return (
@@ -38,8 +38,8 @@ function NavLinks({ pathname }: { pathname: string | null }) {
             href={href}
             aria-current={active ? 'page' : undefined}
             className={cn(
-              'flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground',
-              active && 'bg-muted font-medium text-foreground',
+              'flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-sm text-muted-foreground transition-all hover:text-foreground',
+              active && 'bg-card font-medium text-primary shadow-sm',
             )}
           >
             <Icon className="size-4" aria-hidden />

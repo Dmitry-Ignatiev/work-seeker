@@ -12,6 +12,7 @@ export function SignOutButton() {
     <Button
       variant="ghost"
       size="sm"
+      className="rounded-full text-muted-foreground hover:text-foreground"
       onClick={async () => {
         await authClient.signOut();
         // Chats are kept in this tab while signed in; the next person on this browser mustn't see them.
