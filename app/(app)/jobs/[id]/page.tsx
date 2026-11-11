@@ -71,19 +71,28 @@ async function JobPageContent({ params, searchParams }: Pick<PageProps<'/jobs/[i
             )}
           </div>
           {description && (
-            <div
-              dir="auto"
-              className="whitespace-pre-line text-sm leading-relaxed text-muted-foreground"
-              data-testid="job-description"
-            >
-              {preview}
-              {rest && (
-                <details>
-                  <summary className="cursor-pointer text-primary">Show full description</summary>
-                  {rest}
-                </details>
-              )}
-            </div>
+            <>
+              {/* Phones: folded away, so the requirements and the chat come first. */}
+              <details className="text-sm lg:hidden">
+                <summary className="cursor-pointer text-primary">Show job description</summary>
+                <div dir="auto" className="mt-2 whitespace-pre-line leading-relaxed text-muted-foreground">
+                  {description}
+                </div>
+              </details>
+              <div
+                dir="auto"
+                className="hidden whitespace-pre-line text-sm leading-relaxed text-muted-foreground lg:block"
+                data-testid="job-description"
+              >
+                {preview}
+                {rest && (
+                  <details>
+                    <summary className="cursor-pointer text-primary">Show full description</summary>
+                    {rest}
+                  </details>
+                )}
+              </div>
+            </>
           )}
         </div>
       }
