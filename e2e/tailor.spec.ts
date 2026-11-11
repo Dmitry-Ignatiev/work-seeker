@@ -80,6 +80,8 @@ test('with a CV on file, "Tailor my CV" asks which CV to tailor before starting'
   // (The search page stays mounted, hidden, behind the job page: look in the job page's chat only.)
   await expect(page.getByRole('region', { name: 'Chat about this job' }).getByTestId('user-message')).toHaveCount(0);
   await expect(choose.getByRole('button', { name: 'Upload a different CV' })).toBeVisible();
+  // The match with the picked CV is counted by code and shown above the requirements.
+  await expect(page.getByTestId('job-match')).toContainText(/Your CV matches \d+ of \d+ requirements/);
 
   await choose.getByLabel('Your CVs').getByRole('button', { name: /Dana Levi CV/ }).click();
   const result = page.getByRole('region', { name: 'Tailored CV' });
