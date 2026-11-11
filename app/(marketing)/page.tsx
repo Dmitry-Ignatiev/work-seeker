@@ -1,5 +1,6 @@
-import { ArrowRightIcon, CheckIcon, DownloadIcon, SearchIcon, ShieldCheckIcon, TriangleAlertIcon } from 'lucide-react';
+import { ArrowRightIcon, CheckIcon, DownloadIcon, ShieldCheckIcon, TriangleAlertIcon } from 'lucide-react';
 import Link from 'next/link';
+import { LogoMark } from '@/components/brand/logo-mark';
 import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -77,7 +78,7 @@ export default function LandingPage() {
         <div className="mx-auto flex w-full max-w-6xl items-center gap-4 px-4 py-3 sm:gap-7">
           <Link href="/" className="flex items-center gap-2.5 font-heading text-lg font-semibold">
             <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <SearchIcon className="size-[18px]" strokeWidth={2.2} aria-hidden />
+              <LogoMark className="size-5" />
             </span>
             Work Seeker
           </Link>
