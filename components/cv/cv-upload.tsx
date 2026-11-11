@@ -19,10 +19,10 @@ const useHydrated = () =>
   );
 
 /**
- * Uploads a PDF to /api/cv-uploads. After success it calls `onUploaded` when given (e.g. the chat continues),
- * otherwise goes to `nextHref` or refreshes the page.
+ * Uploads a PDF to /api/cv-uploads. After success it calls `onUploaded` with the CV's id when given (e.g. the chat
+ * continues) and refreshes the page's data, otherwise goes to `nextHref` or refreshes the page.
  */
-export function CvUpload({ nextHref, onUploaded }: { nextHref?: string; onUploaded?: () => void }) {
+export function CvUpload({ nextHref, onUploaded }: { nextHref?: string; onUploaded?: (cv: { id: string }) => void }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -40,15 +40,17 @@ export function CvUpload({ nextHref, onUploaded }: { nextHref?: string; onUpload
       const body = new FormData();
       body.append('file', file);
       const response = await fetch('/api/cv-uploads', { method: 'POST', body });
-      const data = (await response.json().catch(() => ({}))) as { error?: string; duplicate?: boolean };
+      const data = (await response.json().catch(() => ({}))) as { id?: string; error?: string; duplicate?: boolean };
       if (inputRef.current) inputRef.current.value = '';
       if (!response.ok) {
         setError(data.error ?? 'Upload failed. Try again.');
         return;
       }
       toast.success(data.duplicate ? 'You already uploaded this CV.' : 'CV uploaded.');
-      if (onUploaded) onUploaded();
-      else if (nextHref) router.push(nextHref);
+      if (onUploaded && data.id) {
+        onUploaded({ id: data.id });
+        router.refresh(); // e.g. the job page's CV list
+      } else if (nextHref) router.push(nextHref);
       else router.refresh();
     });
 

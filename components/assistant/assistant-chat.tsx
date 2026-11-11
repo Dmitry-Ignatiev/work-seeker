@@ -58,6 +58,11 @@ const useHydrated = () =>
 /** The page context of each chat, read when a request is sent (so a CV picked later is used from then on). */
 const chatContexts = new Map<string, ChatContext | undefined>();
 
+/** Sets a chat's context right away, for a message sent in the same click (the effect below runs after render). */
+export function setChatContext(chatKey: string, context: ChatContext) {
+  chatContexts.set(chatKey, context);
+}
+
 function readSaved(storageKey: string): AssistantMessage[] {
   try {
     const saved = sessionStorage.getItem(storageKey);
