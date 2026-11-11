@@ -4,7 +4,6 @@ export type JobSource =
   | 'remoteok'
   | 'adzuna'
   | 'jsearch'
-  | 'gotfriends'
   | 'greenhouse'
   | 'lever'
   | 'ashby';

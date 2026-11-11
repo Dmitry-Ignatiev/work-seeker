@@ -39,7 +39,7 @@ export function createAssistantTools(deps: AssistantToolDeps = {}) {
   return {
     searchJobs: tool({
       description:
-        'Search high-tech job listings in Israel and remote (GotFriends, Israeli company careers pages, remote job boards). ' +
+        'Search high-tech job listings in Israel and remote (Israeli company careers pages, remote job boards). ' +
         'Returns up to 12 jobs with ids. The user sees them as cards.',
       inputSchema: z.object({
         query: z.string().min(2).max(120).describe('Role and key technologies in English, e.g. "senior backend engineer node.js"'),
@@ -60,7 +60,7 @@ export function createAssistantTools(deps: AssistantToolDeps = {}) {
 
     addJob: tool({
       description:
-        'Add one job from a link (company careers page, GotFriends, any job page) or from pasted description text. ' +
+        'Add one job from a link (company careers page or any job page) or from pasted description text. ' +
         'LinkedIn, Indeed and Glassdoor links return NEEDS_PASTE: then ask the user to paste the description.',
       inputSchema: z
         .object({

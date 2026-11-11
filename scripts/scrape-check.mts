@@ -11,7 +11,6 @@ import { isIsraelLocation } from '../server/discovery/location';
 import { arbeitnow } from '../server/discovery/sources/arbeitnow';
 import { jsearch } from '../server/discovery/sources/jsearch';
 import { remoteok } from '../server/discovery/sources/remoteok';
-import { fetchGotFriendsJob, gotfriends } from '../server/discovery/scrape/gotfriends';
 
 config({ path: ['.env.local', '.env'], quiet: true });
 
@@ -25,20 +24,6 @@ async function timed<T>(fn: () => Promise<T>): Promise<[T, number]> {
   const start = Date.now();
   const value = await fn();
   return [value, Date.now() - start];
-}
-
-async function checkGotFriends() {
-  try {
-    const [jobs, ms] = await timed(() => gotfriends.search({ query: 'backend developer' }));
-    line(jobs.length > 0, 'GotFriends listing', `${jobs.length} jobs in ${ms} ms${jobs[0] ? ` · e.g. "${jobs[0].title}"` : ''}`);
-    if (jobs[0]) {
-      const page = await fetchGotFriendsJob(jobs[0].url);
-      const length = page.description?.length ?? 0;
-      line(length > 200, 'GotFriends job page', `${length} chars, location: ${page.location ?? '?'}, requirements: ${/דרישות/.test(page.description ?? '') ? 'yes' : 'no'}`);
-    }
-  } catch (error) {
-    line(false, 'GotFriends', (error as Error).message);
-  }
 }
 
 async function checkBoards() {
@@ -74,7 +59,7 @@ async function checkFeed(name: string, run: () => Promise<unknown[]>, core = fal
 }
 
 console.log('Checking job sources (live)…\n');
-await Promise.all([checkGotFriends(), checkBoards()]);
+await checkBoards();
 await checkFeed('Remote OK', () => remoteok.search({ query: '' }));
 await checkFeed('Arbeitnow', () => arbeitnow.search({ query: '' }));
 if (jsearch.enabled()) await checkFeed('JSearch', () => jsearch.search({ query: 'software engineer', location: 'Israel' }));

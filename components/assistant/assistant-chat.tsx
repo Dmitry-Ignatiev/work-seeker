@@ -168,7 +168,7 @@ function Chat({
           <div className="flex flex-col gap-1">
             <h1 className="font-heading text-2xl font-semibold">Find your next high-tech job</h1>
             <p className="text-sm text-muted-foreground">
-              Describe the role you want. I search GotFriends, Israeli company careers pages and remote job boards.
+              Describe the role you want. I search Israeli company careers pages and remote job boards.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">

@@ -3,7 +3,7 @@
  * (AI_MOCK=1) and demo listings replace the job sites (E2E=1). For UI work without an API key,
  * and as a Demo Day fallback when the network is down.
  *
- * `npm run dev:live-jobs`: scripted model, but REAL job sources (GotFriends, company boards,
+ * `npm run dev:live-jobs`: scripted model, but REAL job sources (company boards,
  * remote boards). Tests the real job pipeline end to end without an API key.
  * Note: the job sites see this machine's IP.
  */
