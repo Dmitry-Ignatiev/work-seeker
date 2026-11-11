@@ -1,10 +1,11 @@
 'use client';
 
-import { ArrowLeftIcon, CheckIcon } from 'lucide-react';
+import { ArrowLeftIcon, CheckIcon, FileTextIcon } from 'lucide-react';
 import Link from 'next/link';
 import { createContext, useContext, useState, type ReactNode } from 'react';
-import { AssistantChat } from '@/components/assistant/assistant-chat';
+import { AssistantChat, setChatContext } from '@/components/assistant/assistant-chat';
 import { tailorRequest } from '@/components/assistant/requests';
+import { CvUpload } from '@/components/cv/cv-upload';
 import { Button } from '@/components/ui/button';
 
 export interface WorkspaceCv {
@@ -15,6 +16,17 @@ export interface WorkspaceCv {
 
 const SelectedCv = createContext<string | undefined>(undefined);
 const CurrentJob = createContext<{ id: string; title: string; company: string } | undefined>(undefined);
+
+interface TailorChoice {
+  cvs: WorkspaceCv[];
+  cvId?: string;
+  /** True while the chat asks which CV to tailor (instead of tailoring the default one unasked). */
+  choosing: boolean;
+  setChoosing: (choosing: boolean) => void;
+  /** Picks the CV for this page and tailors it now. */
+  tailorWith: (cvId: string, onAsk: (text: string) => void) => void;
+}
+const Tailoring = createContext<TailorChoice | undefined>(undefined);
 
 /**
  * A job's own page: its details on the left, a chat about this job on the right. The CV picked here is
@@ -35,10 +47,20 @@ export function JobWorkspace({
 }) {
   const [cvId, setCvId] = useState<string | undefined>(() => (cvs.find(cv => cv.isDefault) ?? cvs[0])?.id);
   const tailor = tailorRequest(job);
+  const chatKey = `job:${job.id}`;
+  // From "Tailor my CV": with CVs on file, ask which one first. Without any, tailoring asks for an upload.
+  const [choosing, setChoosing] = useState(autoTailor && cvs.length > 0);
+  const tailorWith = (id: string, onAsk: (text: string) => void) => {
+    setCvId(id);
+    setChatContext(chatKey, { jobId: job.id, cvId: id });
+    setChoosing(false);
+    onAsk(tailor);
+  };
 
   return (
     <CurrentJob.Provider value={job}>
       <SelectedCv.Provider value={cvId}>
+        <Tailoring.Provider value={{ cvs, cvId, choosing, setChoosing, tailorWith }}>
         <div className="flex flex-col gap-4">
           <Link
             href="/assistant"
@@ -54,15 +76,16 @@ export function JobWorkspace({
             </aside>
             <section className="flex min-h-[60vh] flex-col" aria-label="Chat about this job">
               <AssistantChat
-                chatKey={`job:${job.id}`}
+                chatKey={chatKey}
                 context={{ jobId: job.id, cvId }}
-                autoStart={autoTailor ? tailor : undefined}
+                autoStart={autoTailor && cvs.length === 0 ? tailor : undefined}
                 placeholder="Ask about this job: what am I missing, do I fit…"
                 EmptyState={JobChatStart}
               />
             </section>
           </div>
         </div>
+        </Tailoring.Provider>
       </SelectedCv.Provider>
     </CurrentJob.Provider>
   );
@@ -71,12 +94,17 @@ export function JobWorkspace({
 /** What an empty job chat offers: the three things people come to a job page for. */
 function JobChatStart({ onAsk }: { onAsk: (text: string) => void }) {
   const job = useContext(CurrentJob);
+  const tailoring = useContext(Tailoring);
+  if (tailoring?.choosing) return <ChooseCv onAsk={onAsk} />;
   return (
     <div className="flex flex-col gap-3 py-4">
       <p className="text-sm text-muted-foreground">This chat knows this job and the CV you picked.</p>
       <div className="flex flex-wrap gap-2">
         {job && (
-          <Button size="sm" onClick={() => onAsk(tailorRequest(job))}>
+          <Button
+            size="sm"
+            onClick={() => (tailoring && tailoring.cvs.length > 0 ? tailoring.setChoosing(true) : onAsk(tailorRequest(job)))}
+          >
             Tailor my CV for this job
           </Button>
         )}
@@ -87,6 +115,51 @@ function JobChatStart({ onAsk }: { onAsk: (text: string) => void }) {
           Do I fit this role?
         </Button>
       </div>
+    </div>
+  );
+}
+
+/** Asks which CV to tailor: one of the CVs on file, or a new upload. */
+function ChooseCv({ onAsk }: { onAsk: (text: string) => void }) {
+  const job = useContext(CurrentJob);
+  const tailoring = useContext(Tailoring);
+  const [uploading, setUploading] = useState(false);
+  if (!tailoring) return null;
+  const { cvs, cvId, tailorWith, setChoosing } = tailoring;
+  return (
+    <div className="flex flex-col gap-3 py-4" data-testid="choose-cv">
+      <p className="font-medium" dir="auto">
+        Which CV should I tailor{job ? ` for ${job.title}` : ''}?
+      </p>
+      <ul className="flex flex-col gap-2" aria-label="Your CVs">
+        {cvs.map(cv => (
+          <li key={cv.id}>
+            <Button
+              variant={cv.id === cvId ? 'default' : 'outline'}
+              className="h-auto w-full justify-start gap-2 py-2.5 text-left"
+              onClick={() => tailorWith(cv.id, onAsk)}
+            >
+              <FileTextIcon className="size-4 shrink-0" aria-hidden />
+              <span dir="auto" className="truncate">
+                {cv.label}
+              </span>
+              {cv.isDefault && <span className="ml-auto text-xs opacity-75">default</span>}
+            </Button>
+          </li>
+        ))}
+      </ul>
+      {uploading ? (
+        <CvUpload onUploaded={cv => tailorWith(cv.id, onAsk)} />
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="ghost" onClick={() => setUploading(true)}>
+            Upload a different CV
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setChoosing(false)}>
+            Cancel
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
