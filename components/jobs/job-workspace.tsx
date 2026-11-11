@@ -199,6 +199,63 @@ export function RequirementChips({
   const cvId = useContext(SelectedCv);
   const owned = new Set(cvId ? (have[cvId] ?? []) : []);
   if (requirements.length === 0) return null;
+  const matched = requirements.filter(({ keyword }) => owned.has(keyword)).length;
+  const percent = Math.round((matched / requirements.length) * 100);
+  return (
+    <div className="flex flex-col gap-4">
+      {cvId && <MatchBar matched={matched} total={requirements.length} percent={percent} />}
+      <RequirementList requirements={requirements} owned={owned} cvId={cvId} />
+    </div>
+  );
+}
+
+/** How much of what the job asks for the picked CV already shows: counted by code, never by the model. */
+function MatchBar({ matched, total, percent }: { matched: number; total: number; percent: number }) {
+  const level = percent >= 70 ? 'Strong match' : percent >= 40 ? 'Partial match' : 'Low match';
+  return (
+    <div className="flex flex-col gap-2 rounded-xl border bg-card p-4" data-testid="job-match">
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="text-sm">
+          Your CV matches <strong>{matched}</strong> of <strong>{total}</strong> requirements
+        </p>
+        <span
+          className={
+            percent >= 70
+              ? 'text-sm font-semibold text-primary'
+              : percent >= 40
+                ? 'text-sm font-semibold text-amber-600'
+                : 'text-sm font-semibold text-muted-foreground'
+          }
+        >
+          {percent}%
+        </span>
+      </div>
+      <div
+        className="h-2 overflow-hidden rounded-full bg-border"
+        role="progressbar"
+        aria-label="Job match"
+        aria-valuenow={percent}
+        aria-valuemin={0}
+        aria-valuemax={100}
+      >
+        <div className="h-full rounded-full bg-primary transition-[width] duration-500" style={{ width: `${percent}%` }} />
+      </div>
+      <p className="text-xs text-muted-foreground">
+        {level}. Tailoring can bring forward what your CV already shows; missing skills are never invented.
+      </p>
+    </div>
+  );
+}
+
+function RequirementList({
+  requirements,
+  owned,
+  cvId,
+}: {
+  requirements: { keyword: string }[];
+  owned: Set<string>;
+  cvId?: string;
+}) {
   return (
     <div className="flex flex-col gap-2" data-testid="requirements">
       <h2 className="text-sm text-muted-foreground">What they ask for{cvId ? ' (green: in your CV)' : ''}</h2>
