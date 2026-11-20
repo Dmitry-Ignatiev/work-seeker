@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { safeNext } from '@/lib/safe-next';
 import { useState, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
@@ -14,10 +15,6 @@ interface Props {
   github: boolean;
 }
 
-/** Only allow same-site relative redirects. */
-function safeNext(next: string | null): string | null {
-  return next && next.startsWith('/') && !next.startsWith('//') ? next : null;
-}
 
 export function SignInForm({ emailPassword, google, github }: Props) {
   const router = useRouter();

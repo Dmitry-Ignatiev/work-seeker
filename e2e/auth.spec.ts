@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { signUp } from './helpers';
 
 test('signed-out visitors are sent to sign-in, keeping where they were going', async ({ page }) => {
   await page.goto('/assistant');
@@ -26,4 +27,17 @@ test('a new user can sign up, lands in the chat, and can sign out', async ({ pag
   await expect(page).toHaveURL(/\/$/);
   await page.goto('/assistant');
   await expect(page).toHaveURL(/\/sign-in/);
+});
+
+test('a visitor who is already signed in skips the sign-in page', async ({ page }) => {
+  await signUp(page, 'Returning User', 'back');
+  // From the homepage's "Sign in" / "Start chatting" buttons: straight to the chat.
+  await page.goto('/');
+  await page.getByRole('link', { name: 'Sign in' }).first().click();
+  await expect(page).toHaveURL(/\/assistant$/);
+  // Where they were heading is kept; another site is not.
+  await page.goto('/sign-in?next=%2Fmy-cvs');
+  await expect(page).toHaveURL(/\/my-cvs$/);
+  await page.goto('/sign-in?next=%2F%2Fevil.example');
+  await expect(page).toHaveURL(/\/assistant$/);
 });
