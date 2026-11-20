@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { CV_MAX_BYTES, CvUploadError, extractPdfText } from '@/server/cv/pdf';
+import { extractCv } from '@/server/cv/extract';
+import { CV_MAX_BYTES, CvUploadError } from '@/server/cv/pdf';
 import { createCv } from '@/server/services/cv';
 import { getCurrentUser } from '@/server/session';
 
@@ -9,8 +10,8 @@ const ENVELOPE_BYTES = 64 * 1024;
 const error = (message: string, status: number) => NextResponse.json({ error: message }, { status });
 
 /**
- * CV upload: multipart field `file`, a PDF of at most 4 MB and 20 pages.
- * The PDF is parsed in memory and discarded. Only its text is stored.
+ * CV upload: multipart field `file`, a PDF or Word (.docx) file of at most 4 MB and 20 pages.
+ * The file is parsed in memory and discarded. Only its text is stored.
  */
 export async function POST(request: Request) {
   const user = await getCurrentUser();
@@ -26,11 +27,11 @@ export async function POST(request: Request) {
     return error('Send the CV as multipart form data.', 400);
   }
   const file = form.get('file');
-  if (!(file instanceof File)) return error('Choose a PDF file.', 400);
+  if (!(file instanceof File)) return error('Choose a PDF or Word (.docx) file.', 400);
   if (file.size > CV_MAX_BYTES) return error('The file is larger than 4 MB.', 413);
 
   try {
-    const { text, pageCount, links, layout, layoutNote } = await extractPdfText(new Uint8Array(await file.arrayBuffer()));
+    const { text, pageCount, links, layout, layoutNote } = await extractCv(new Uint8Array(await file.arrayBuffer()));
     const result = await createCv(user.id, { fileName: file.name, sizeBytes: file.size, pageCount, text, links, layout, layoutNote });
     return NextResponse.json(result, { status: result.duplicate ? 200 : 201 });
   } catch (e) {
