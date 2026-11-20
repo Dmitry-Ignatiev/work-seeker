@@ -21,7 +21,7 @@ test('tailor a CV for a job: upload in chat, see what changed and what was refus
 
   // No CV yet: an upload box appears in the job's chat, and tailoring continues after the upload.
   const needed = page.getByTestId('cv-needed');
-  const upload = needed.getByLabel('Upload your CV (PDF)');
+  const upload = needed.getByLabel('Upload your CV (PDF or Word)');
   await expect(upload).toBeEnabled();
   await upload.setInputFiles({ name: 'Dana Levi CV.pdf', mimeType: 'application/pdf', buffer: Buffer.from(makePdf([SAMPLE_CV_LINES])) });
 
@@ -63,7 +63,7 @@ test('with a CV on file, "Tailor my CV" asks which CV to tailor before starting'
   await signUp(page, 'Chooser Tester', 'choose');
   await page.goto('/cvs');
   await page
-    .getByLabel('Upload your CV (PDF)')
+    .getByLabel('Upload your CV (PDF or Word)')
     .setInputFiles({ name: 'Dana Levi CV.pdf', mimeType: 'application/pdf', buffer: Buffer.from(makePdf([SAMPLE_CV_LINES])) });
   await expect(page.getByText('CV uploaded.')).toBeVisible();
 

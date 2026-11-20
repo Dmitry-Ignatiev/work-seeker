@@ -135,7 +135,7 @@ export function createAssistantTools(deps: AssistantToolDeps = {}) {
                 .filter(Boolean)
                 .join('\n')
             : output.status === 'NEEDS_CV'
-              ? 'NEEDS_CV: the user has no CV yet. They now see an upload box under your message; ask them to upload their CV (PDF). After the upload, tailoring continues automatically.'
+              ? 'NEEDS_CV: the user has no CV yet. They now see an upload box under your message; ask them to upload their CV (PDF or Word .docx). After the upload, tailoring continues automatically.'
               : output.status === 'CV_UNREADABLE'
                 ? `CV_UNREADABLE: ${output.reason}`
                 : 'Job not found.',

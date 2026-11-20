@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { signUp } from './helpers';
+import { makeDocx } from '../tests/support/make-docx';
 import { makePdf, SAMPLE_CV_LINES } from '../tests/support/make-pdf';
 
 test('upload a CV, see its skills, then delete it', async ({ page }) => {
@@ -7,7 +8,7 @@ test('upload a CV, see its skills, then delete it', async ({ page }) => {
   await signUp(page, 'CV Tester', 'cv');
   await page.goto('/my-cvs');
 
-  const input = page.getByLabel('Upload your CV (PDF)');
+  const input = page.getByLabel('Upload your CV (PDF or Word)');
   await expect(input).toBeEnabled(); // enabled once hydrated
   await input.setInputFiles({
     name: 'Dana Levi CV.pdf',
@@ -40,17 +41,36 @@ test('upload a CV, see its skills, then delete it', async ({ page }) => {
   await expect(page.getByText('No CVs yet.')).toBeVisible();
 });
 
+test('a Word (.docx) CV uploads like a PDF and its skills are found', async ({ page }) => {
+  test.slow();
+  await signUp(page, 'Docx Tester', 'docx');
+  await page.goto('/my-cvs');
+  const input = page.getByLabel('Upload your CV (PDF or Word)');
+  await expect(input).toBeEnabled();
+  await input.setInputFiles({
+    name: 'Dana Levi CV.docx',
+    mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    buffer: Buffer.from(await makeDocx(SAMPLE_CV_LINES.slice(2), { header: SAMPLE_CV_LINES.slice(0, 2) })),
+  });
+  const card = page.getByRole('listitem').filter({ hasText: 'Dana Levi CV' });
+  await expect(card).toBeVisible();
+  const skills = card.getByRole('list', { name: 'Skills found' });
+  for (const skill of ['TypeScript', 'React', 'Node.js', 'PostgreSQL', 'Docker']) {
+    await expect(skills.getByText(skill, { exact: true })).toBeVisible();
+  }
+});
+
 test('a file that is not a PDF is rejected with a clear message', async ({ page }) => {
   await signUp(page, 'CV Tester', 'cv');
   await page.goto('/my-cvs');
-  const input = page.getByLabel('Upload your CV (PDF)');
+  const input = page.getByLabel('Upload your CV (PDF or Word)');
   await expect(input).toBeEnabled(); // enabled once hydrated
   await input.setInputFiles({
     name: 'cv.pdf',
     mimeType: 'application/pdf',
     buffer: Buffer.from('this is plain text pretending to be a PDF'),
   });
-  await expect(page.getByText('Only PDF files are supported.')).toBeVisible();
+  await expect(page.getByText('Only PDF or Word (.docx) files are supported.')).toBeVisible();
   await expect(page.getByText('No CVs yet.')).toBeVisible();
 });
 

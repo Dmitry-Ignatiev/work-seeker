@@ -181,7 +181,7 @@ export async function tailorCvForJob(userId: string, jobId: string, cvId?: strin
   if (!cvData) return { status: 'NEEDS_CV' };
   const { cv, userName, redactedText, structure } = cvData;
   if (bulletCount(structure) === 0) {
-    return { status: 'CV_UNREADABLE', reason: "I couldn't find experience bullets in your CV. Try a PDF exported from Word or Google Docs." };
+    return { status: 'CV_UNREADABLE', reason: "I couldn't find experience bullets in your CV. Try a PDF or Word file exported from Word or Google Docs." };
   }
 
   let job: Awaited<ReturnType<typeof getJobKeywords>>['job'];

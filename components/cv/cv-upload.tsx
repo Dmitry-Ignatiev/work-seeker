@@ -19,7 +19,7 @@ const useHydrated = () =>
   );
 
 /**
- * Uploads a PDF to /api/cv-uploads. After success it calls `onUploaded` with the CV's id when given (e.g. the chat
+ * Uploads a PDF or Word (.docx) CV to /api/cv-uploads. After success it calls `onUploaded` with the CV's id when given (e.g. the chat
  * continues) and refreshes the page's data, otherwise goes to `nextHref` or refreshes the page.
  */
 export function CvUpload({ nextHref, onUploaded }: { nextHref?: string; onUploaded?: (cv: { id: string }) => void }) {
@@ -58,7 +58,7 @@ export function CvUpload({ nextHref, onUploaded }: { nextHref?: string; onUpload
     <div className="flex flex-col gap-3 rounded-xl border border-dashed p-5">
       <label htmlFor="cv-file" className="flex items-center gap-2 font-medium">
         <UploadIcon className="size-4" aria-hidden />
-        Upload your CV (PDF)
+        Upload your CV (PDF or Word)
       </label>
       <p className="text-sm text-muted-foreground">
         Up to 4 MB and 20 pages. Only the text is kept. The file itself is never stored.
@@ -67,7 +67,7 @@ export function CvUpload({ nextHref, onUploaded }: { nextHref?: string; onUpload
         id="cv-file"
         ref={inputRef}
         type="file"
-        accept="application/pdf,.pdf"
+        accept="application/pdf,.pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx"
         disabled={!hydrated || pending}
         onChange={event => {
           const file = event.target.files?.[0];
