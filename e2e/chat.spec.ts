@@ -54,6 +54,27 @@ test('a search without a place gets "where would you like to work?" first, then 
   await expect(page.getByTestId('search-sources')).toBeVisible();
 });
 
+test('the chat survives a refresh, and "New chat" starts over', async ({ page }) => {
+  await signUp(page, 'Chat Tester', 'newchat');
+  await expect(page.getByRole('button', { name: 'New chat' })).toHaveCount(0);
+  const message = page.getByLabel('Message');
+  await message.fill('Senior backend jobs in Tel Aviv');
+  await message.press('Enter');
+  await expect(page.getByTestId('search-sources')).toBeVisible();
+  // The chat is saved once the reply has finished.
+  await expect(page.getByTestId('assistant-message').last()).toContainText('Here are the jobs I found');
+
+  await page.reload();
+  await expect(page.getByTestId('user-message')).toHaveText('Senior backend jobs in Tel Aviv');
+
+  await page.getByRole('button', { name: 'New chat' }).click();
+  await expect(page.getByTestId('user-message')).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Find your next high-tech job' })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Find your next high-tech job' })).toBeVisible();
+  await expect(page.getByTestId('user-message')).toHaveCount(0);
+});
+
 test('the chat API refuses signed-out requests', async ({ request }) => {
   const response = await request.post('/api/chat', { data: { messages: [{ id: '1', role: 'user', parts: [{ type: 'text', text: 'hi' }] }] } });
   expect(response.status()).toBe(401);
