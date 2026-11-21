@@ -1,4 +1,5 @@
 import { cached, getJson } from '../http';
+import { isIsraelLocation } from '../location';
 import { formatSalary } from '../text';
 import type { Job, SourceAdapter } from '../types';
 
@@ -30,9 +31,22 @@ const TTL = 30 * 60 * 1000;
 export function jsearchParams({ query, location, remoteOnly }: { query: string; location?: string; remoteOnly?: boolean }) {
   const place = location?.trim();
   const inIsrael = !place || /remote|anywhere|israel|ישראל|מרחוק/i.test(place) ? 'Israel' : `${place}, Israel`;
-  const params = new URLSearchParams({ query: `${query} in ${inIsrael}`, page: '1', num_pages: '1', country: 'il' });
+  const params = new URLSearchParams({ query: `${query} in ${inIsrael}`, num_pages: '1', country: 'il' });
   if (remoteOnly || (place && /remote|מרחוק/i.test(place))) params.set('work_from_home', 'true');
   return params;
+}
+
+/**
+ * A readable location. Cities often come in Hebrew ("יפו") with the country as a code ("IL"), so the code is
+ * spelled out: "יפו, Israel". Google sometimes labels Israeli cities with country "US" ("Tel Aviv-Yafo, US");
+ * those are corrected to Israel.
+ */
+export function jsearchLocation(j: Pick<JSearchJob, 'job_city' | 'job_state' | 'job_country' | 'job_is_remote'>): string {
+  const place = [j.job_city, j.job_state].filter(Boolean).join(', ');
+  const mislabeled = j.job_country === 'US' && isIsraelLocation(place);
+  const country = j.job_country === 'IL' || mislabeled ? 'Israel' : j.job_country;
+  const parts = [place, country].filter(Boolean);
+  return parts.join(', ') || (j.job_is_remote ? 'Remote' : 'Unknown');
 }
 
 /** JSearch (RapidAPI): aggregates Google for Jobs (LinkedIn, Indeed, Glassdoor…). Needs JSEARCH_API_KEY. */
@@ -40,17 +54,21 @@ export const jsearch: SourceAdapter = {
   name: 'jsearch',
   label: 'JSearch',
   enabled: () => Boolean(process.env.JSEARCH_API_KEY),
+  // Google for Jobs answers in 4–12 s; the other sources' 8 s cut it off half the time.
+  timeoutMs: 15_000,
   async search(input) {
     const params = jsearchParams(input);
+    // JSearch v5: /search-v2 returns { data: { jobs, cursor } } (the old /search returned { data: [...] }).
     const data = await cached(`jsearch:${params}`, TTL, () =>
-      getJson<{ data: JSearchJob[] }>(`https://jsearch.p.rapidapi.com/search?${params}`, {
+      getJson<{ data: { jobs?: JSearchJob[] } | JSearchJob[] }>(`https://jsearch.p.rapidapi.com/search-v2?${params}`, {
         headers: {
           'X-RapidAPI-Key': process.env.JSEARCH_API_KEY!,
           'X-RapidAPI-Host': 'jsearch.p.rapidapi.com',
         },
       }),
     );
-    return (data.data ?? []).map(
+    const jobs = Array.isArray(data.data) ? data.data : (data.data?.jobs ?? []);
+    return jobs.map(
       (j): Job => {
         const cur = j.job_salary_currency;
         const symbol = !cur || cur === 'USD' ? '$' : `${cur} `;
@@ -59,9 +77,7 @@ export const jsearch: SourceAdapter = {
           source: 'jsearch',
           title: j.job_title,
           company: j.employer_name,
-          location:
-            [j.job_city, j.job_state, j.job_country].filter(Boolean).join(', ') ||
-            (j.job_is_remote ? 'Remote' : 'Unknown'),
+          location: jsearchLocation(j),
           remote: Boolean(j.job_is_remote),
           salary: formatSalary(j.job_min_salary, j.job_max_salary, symbol),
           tags: [j.job_employment_type, j.job_publisher].filter(Boolean) as string[],

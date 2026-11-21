@@ -17,7 +17,7 @@ export function asksForRemote(place: string | undefined | null): boolean {
   return Boolean(place && /\b(remote|work from home|wfh)\b|מרחוק|מהבית/i.test(place));
 }
 
-const TEL_AVIV = String.raw`tel[\s-]?aviv|\btlv\b|תל[\s-]?אביב|ת"א`;
+const TEL_AVIV = String.raw`tel[\s-]?aviv|\btlv\b|jaffa|yafo|תל[\s-]?אביב|ת"א|יפו`;
 /** Regions people name, and the job locations that belong to each. */
 const REGIONS: { asked: RegExp; located: RegExp }[] = [
   { asked: new RegExp(TEL_AVIV, 'i'), located: new RegExp(TEL_AVIV, 'i') },

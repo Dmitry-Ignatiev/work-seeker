@@ -7,7 +7,7 @@ import { isIsraelLocation, isRemoteLocation } from './location';
 
 export type Region = 'tel-aviv' | 'center' | 'jerusalem' | 'haifa-north' | 'south' | 'israel' | 'remote';
 
-const TEL_AVIV = String.raw`tel[\s-]?aviv|\btlv\b|תל[\s-]?אביב|ת"א`;
+const TEL_AVIV = String.raw`tel[\s-]?aviv|\btlv\b|jaffa|yafo|תל[\s-]?אביב|ת"א|יפו`;
 const REGIONS: Record<Exclude<Region, 'israel' | 'remote'>, RegExp> = {
   'tel-aviv': new RegExp(TEL_AVIV, 'i'),
   center: new RegExp(
