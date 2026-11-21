@@ -9,6 +9,7 @@ import { asksForRemote, isIsraelLocation, isRemoteLocation, locationMatchesPlace
 import { FetchBlockedError } from '@/server/discovery/net/safe-fetch';
 import { politeFetch } from '@/server/discovery/net/polite-fetch';
 import { needsPaste, normalizeUrl } from '@/server/discovery/normalize-url';
+import { isFromSite, publisherName, type JobSite } from '@/server/discovery/publisher';
 import { jobFingerprint, rankJobs, titleSearchWords, type Seniority } from '@/server/discovery/ranking';
 import { enabledSources } from '@/server/discovery/registry';
 import { fixtureJobs } from '@/server/discovery/sources/fixture';
@@ -17,6 +18,7 @@ import type { Job, SourceAdapter } from '@/server/discovery/types';
 import { NotFoundError } from '@/server/errors';
 
 export const SOURCE_TIMEOUT_MS = 8_000;
+const SITE_SEARCH_TIMEOUT_MS = 25_000;
 const BOARD_TTL_MS = 6 * 60 * 60 * 1000;
 const BOARD_CONCURRENCY = 8;
 /** Network time a search may spend refreshing stale boards (DB sync comes after, within SOURCE_TIMEOUT_MS). */
@@ -81,6 +83,8 @@ export interface SearchJobsInput {
   remoteOnly?: boolean;
   seniority?: Seniority;
   limit?: number;
+  /** Only listings from this job site (through Google for Jobs). */
+  site?: JobSite;
 }
 
 type JobRow = Prisma.JobGetPayload<{ select: typeof summarySelect }>;
@@ -107,7 +111,11 @@ function toSummary(row: JobRow): JobSummary {
     location: row.location ?? 'Unknown',
     remote: row.remoteType === 'REMOTE',
     // Offline demo listings (server/discovery/sources/fixture.ts) must never look like a real source.
-    source: row.sourceJobId?.startsWith('fixture-') ? 'Demo listing' : SOURCE_LABEL[row.source],
+    source: row.sourceJobId?.startsWith('fixture-')
+      ? 'Demo listing'
+      : row.source === 'JSEARCH'
+        ? (publisherName(row.canonicalUrl) ?? SOURCE_LABEL.JSEARCH)
+        : SOURCE_LABEL[row.source],
     url: row.canonicalUrl,
     postedAt: row.postedAt?.toISOString() ?? null,
     snippet: text.length > 280 ? `${text.slice(0, 277)}…` : text,
@@ -326,15 +334,18 @@ export async function searchJobs(
   deps: SearchDeps = defaultDeps(),
 ): Promise<{ jobs: JobSummary[]; sources: SourceStatus[]; widenedFrom?: string }> {
   const query = input.query.trim().slice(0, 200);
-  const params = { query, location: input.location, remoteOnly: input.remoteOnly };
+  const params = { query, location: input.location, remoteOnly: input.remoteOnly, site: input.site };
+  // One job site (LinkedIn, Glassdoor, Indeed) can only be asked of Google for Jobs.
+  const searched = input.site ? deps.sources.filter(source => source.name === 'jsearch') : deps.sources;
 
   const settled = await Promise.allSettled(
-    deps.sources.map(source => withTimeout(source.search(params), source.timeoutMs ?? SOURCE_TIMEOUT_MS)),
+    // A one-site search is a single, slower Google for Jobs query (12-20 s), so it gets more time.
+    searched.map(source => withTimeout(source.search(params), input.site ? SITE_SEARCH_TIMEOUT_MS : (source.timeoutMs ?? SOURCE_TIMEOUT_MS))),
   );
   const found: Job[] = [];
   /** job id → index of the source that returned it, for per-source counts. */
   const origin = new Map<string, number>();
-  const sources: SourceStatus[] = deps.sources.map((source, i) => {
+  const sources: SourceStatus[] = searched.map((source, i) => {
     const result = settled[i];
     if (result.status === 'rejected') return { source: source.label, ok: false, found: 0, error: friendlyError(result.reason) };
     for (const job of result.value) {
@@ -348,6 +359,7 @@ export async function searchJobs(
   // Remote roles only when asked for; otherwise only on-site/hybrid roles in the place asked for (or Israel).
   const remoteWanted = input.remoteOnly || asksForRemote(wantedPlace);
   let filtered = found.filter(job => {
+    if (input.site && !isFromSite(job.url, input.site)) return false;
     if (remoteWanted) return job.remote;
     if (job.remote) return false;
     return wantedPlace ? locationMatchesPlace(wantedPlace, job.location) : isIsraelLocation(job.location);
@@ -356,7 +368,7 @@ export async function searchJobs(
   // and say so, rather than an empty result.
   let widenedFrom: string | undefined;
   if (filtered.length === 0 && wantedPlace && !remoteWanted && !locationMatchesPlace(wantedPlace, 'Israel')) {
-    filtered = found.filter(job => !job.remote && isIsraelLocation(job.location));
+    filtered = found.filter(job => !job.remote && isIsraelLocation(job.location) && (!input.site || isFromSite(job.url, input.site)));
     if (filtered.length > 0) widenedFrom = wantedPlace;
   }
 

@@ -102,6 +102,24 @@ describe('jobs service', () => {
       expect(await titles('Israel')).toEqual(['Backend Developer', 'Backend Engineer', 'Backend Lead']);
     });
 
+    it('limits a search to one job site through Google for Jobs, and names the site on each card', async () => {
+      const jsearchSource = adapter('JSearch', async () => [
+        job({ id: 'jsearch:1', source: 'jsearch', title: 'QA Engineer', url: 'https://il.linkedin.com/jobs/view/1' }),
+        job({ id: 'jsearch:2', source: 'jsearch', title: 'QA Lead', url: 'https://www.gotfriends.co.il/jobslobby/qa/2/' }),
+      ]);
+      const boards = {
+        ...adapter('Company careers pages', async () => [job({ id: 'greenhouse:a:3', source: 'greenhouse', title: 'QA Tester' })]),
+        name: 'greenhouse' as const,
+      };
+
+      const linkedin = await jobs.searchJobs({ query: 'qa', site: 'linkedin' }, { sources: [jsearchSource, boards] });
+      expect(linkedin.jobs.map(j => [j.title, j.source])).toEqual([['QA Engineer', 'LinkedIn']]);
+      expect(linkedin.sources.map(s => s.source)).toEqual(['JSearch']);
+
+      const all = await jobs.searchJobs({ query: 'qa' }, { sources: [jsearchSource, boards] });
+      expect(all.jobs.map(j => j.source).sort()).toEqual(['Company careers page', 'GotFriends', 'LinkedIn']);
+    });
+
     it('shows jobs elsewhere in Israel, and says so, when the place asked for has none', async () => {
       const sources = [
         adapter('A', async () => [

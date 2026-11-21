@@ -1,5 +1,6 @@
 import { cached, getJson } from '../http';
 import { isIsraelLocation } from '../location';
+import { siteName, type JobSite } from '../publisher';
 import { formatSalary } from '../text';
 import type { Job, SourceAdapter } from '../types';
 
@@ -28,10 +29,22 @@ const TTL = 30 * 60 * 1000;
  * country=il, and a search without a city says "in Israel". Remote searches stay in Israel too (remote roles
  * open to people here), with JSearch's work-from-home filter on.
  */
-export function jsearchParams({ query, location, remoteOnly }: { query: string; location?: string; remoteOnly?: boolean }) {
+export function jsearchParams({
+  query,
+  location,
+  remoteOnly,
+  site,
+}: {
+  query: string;
+  location?: string;
+  remoteOnly?: boolean;
+  site?: JobSite;
+}) {
   const place = location?.trim();
   const inIsrael = !place || /remote|anywhere|israel|ישראל|מרחוק/i.test(place) ? 'Israel' : `${place}, Israel`;
-  const params = new URLSearchParams({ query: `${query} in ${inIsrael}`, num_pages: '1', country: 'il' });
+  // "via linkedin" is JSearch's own way to ask for one site's listings.
+  const via = site ? ` via ${siteName(site)}` : '';
+  const params = new URLSearchParams({ query: `${query} in ${inIsrael}${via}`, num_pages: '1', country: 'il' });
   if (remoteOnly || (place && /remote|מרחוק/i.test(place))) params.set('work_from_home', 'true');
   return params;
 }

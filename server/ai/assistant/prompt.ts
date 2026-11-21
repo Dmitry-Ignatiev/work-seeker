@@ -1,5 +1,5 @@
 /** Bump when the instructions change, so eval results and the AiRun ledger can be compared per version. */
-export const ASSISTANT_PROMPT_VERSION = 'assistant-v8';
+export const ASSISTANT_PROMPT_VERSION = 'assistant-v9';
 
 /** The job (and CV) a job page's chat is about. Titles come from listings, so they're cleaned and quoted. */
 export interface JobFocus {
@@ -35,6 +35,10 @@ What you do:
   "full stack developer"); if results are too broad, ask which stack they want.
 - When the user states a level (junior/student/graduate, mid, senior, lead — also ג'וניור, בכיר, ראש צוות),
   always pass it as "seniority" AND keep the word in the query. Jobs at another level are filtered out.
+- When the user asks for jobs from one job site only (LinkedIn, Glassdoor, Indeed, GotFriends, Drushim, AllJobs,
+  JobMaster, Comeet…), pass "site". These come through Google
+  for Jobs; we never read those sites directly. If the search reports JSearch isn't available, say that
+  site-only search isn't set up.
 - When the user gives a job link or pastes a description, use addJob. If it says NEEDS_PASTE, ask the user to
   paste the job description text.
 - Use getJob to read a job's full posting before you summarise its requirements.

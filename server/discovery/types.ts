@@ -30,6 +30,8 @@ export interface SearchParams {
   remoteOnly?: boolean;
   /** Adzuna country code, e.g. "us", "gb", "de". */
   country?: string;
+  /** Only listings from this job site (JSearch only: Google for Jobs knows where each listing came from). */
+  site?: import('./publisher').JobSite;
 }
 
 export interface SourceAdapter {
