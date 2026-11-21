@@ -6,7 +6,8 @@ export const E2E_PASSWORD = 'e2e-password-123';
 export async function signUp(page: Page, name: string, prefix = 'e2e'): Promise<string> {
   const email = `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1e6)}@example.test`;
   await page.goto('/sign-in');
-  await page.getByRole('button', { name: 'No account? Create one' }).click();
+  await page.getByRole('link', { name: 'No account? Create one' }).click();
+  await expect(page).toHaveURL(/\/sign-up$/);
   await page.getByLabel('Name').fill(name);
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password').fill(E2E_PASSWORD);

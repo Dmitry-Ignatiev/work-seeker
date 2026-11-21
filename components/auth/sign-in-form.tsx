@@ -10,16 +10,17 @@ import { Input } from '@/components/ui/input';
 import { authClient } from '@/lib/auth-client';
 
 interface Props {
+  /** Which form: each has its own page (/sign-in, /sign-up). */
+  mode: 'sign-in' | 'sign-up';
   emailPassword: boolean;
   google: boolean;
   github: boolean;
 }
 
 
-export function SignInForm({ emailPassword, google, github }: Props) {
+export function SignInForm({ mode, emailPassword, google, github }: Props) {
   const router = useRouter();
   const next = safeNext(useSearchParams().get('next'));
-  const [mode, setMode] = useState<'sign-in' | 'sign-up'>('sign-in');
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -100,13 +101,13 @@ export function SignInForm({ emailPassword, google, github }: Props) {
               Forgot password?
             </Link>
           )}
-          <button
-            type="button"
-            className="text-sm text-muted-foreground underline-offset-4 hover:underline"
-            onClick={() => setMode(m => (m === 'sign-in' ? 'sign-up' : 'sign-in'))}
+          {/* The other form, keeping where they were heading. */}
+          <Link
+            href={`${mode === 'sign-in' ? '/sign-up' : '/sign-in'}${next ? `?next=${encodeURIComponent(next)}` : ''}`}
+            className="text-center text-sm text-muted-foreground underline-offset-4 hover:underline"
           >
             {mode === 'sign-in' ? 'No account? Create one' : 'Have an account? Sign in'}
-          </button>
+          </Link>
         </form>
       )}
 

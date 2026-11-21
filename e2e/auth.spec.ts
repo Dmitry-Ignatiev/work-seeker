@@ -11,7 +11,8 @@ test('a new user can sign up, lands in the chat, and can sign out', async ({ pag
   const email = `e2e-${Date.now()}@example.test`;
 
   await page.goto('/sign-in');
-  await page.getByRole('button', { name: 'No account? Create one' }).click();
+  await page.getByRole('link', { name: 'No account? Create one' }).click();
+  await expect(page).toHaveURL(/\/sign-up$/);
   await page.getByLabel('Name').fill('E2E User');
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password').fill('e2e-password-123');

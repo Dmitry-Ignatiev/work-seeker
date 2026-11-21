@@ -91,15 +91,15 @@ export default function LandingPage() {
             </a>
           </nav>
           <div className="ml-auto flex items-center gap-2">
-            {/* Both links open the same page: on phones only the main one shows, so the header stays on one row. */}
+            {/* On phones only the main button shows, so the header stays on one row; the sign-up page links to sign-in. */}
             <Link
               href="/sign-in"
               className={cn(buttonVariants({ variant: 'ghost' }), 'hidden h-11 px-3.5 text-[15px] sm:inline-flex')}
             >
               Sign in
             </Link>
-            <Link href="/sign-in" className={cn(buttonVariants(), 'h-11 rounded-xl px-4 text-[15px]')}>
-              Start chatting
+            <Link href="/sign-up" className={cn(buttonVariants(), 'h-11 rounded-xl px-4 text-[15px]')}>
+              Sign up free
             </Link>
           </div>
         </div>
@@ -120,7 +120,7 @@ export default function LandingPage() {
                 using only experience you actually have.
               </p>
               <div className="flex flex-wrap gap-3">
-                <Link href="/sign-in" className={startButton}>
+                <Link href="/sign-up" className={startButton}>
                   Start chatting <ArrowRightIcon aria-hidden />
                 </Link>
                 <a
@@ -212,7 +212,7 @@ export default function LandingPage() {
           <p className="max-w-xl text-lg text-muted-foreground">
             Start with one sentence about the job you want. Upload your CV when you’re ready to tailor it.
           </p>
-          <Link href="/sign-in" className={startButton}>
+          <Link href="/sign-up" className={startButton}>
             Start chatting <ArrowRightIcon aria-hidden />
           </Link>
         </section>

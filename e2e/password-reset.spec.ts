@@ -7,7 +7,8 @@ test('save a recovery code at sign-up, then use it to reset a forgotten password
 
   // Sign up: the app offers a recovery code before the chat.
   await page.goto('/sign-in');
-  await page.getByRole('button', { name: 'No account? Create one' }).click();
+  await page.getByRole('link', { name: 'No account? Create one' }).click();
+  await expect(page).toHaveURL(/\/sign-up$/);
   await page.getByLabel('Name').fill('Reset User');
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password').fill('old-password-123');
