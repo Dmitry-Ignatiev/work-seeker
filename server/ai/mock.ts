@@ -110,9 +110,14 @@ function nextStep(callOptions: unknown): { toolName: string; input: unknown } | 
   if (/weather|joke|recipe/i.test(text)) return { text: 'I can only help with job search and CVs.' };
   // Like the real prompt: no place in the request (or the answer to the "where" question) → ask first.
   const role = roleBeforeWhereQuestion(callOptions);
-  if (role) return { toolName: 'searchJobs', input: { query: `${role} ${text}`.slice(0, 120) } };
+  // Remote roles are only shown when asked for, so "remote" sets remoteOnly like the real model does.
+  const search = (query: string) => ({
+    toolName: 'searchJobs',
+    input: { query: query.slice(0, 120), ...(/\bremote\b|מרחוק/i.test(query) ? { remoteOnly: true } : {}) },
+  });
+  if (role) return search(`${role} ${text}`);
   if (!PLACE.test(text)) return { text: MOCK_WHERE_QUESTION };
-  return { toolName: 'searchJobs', input: { query: text.slice(0, 120) || 'software engineer' } };
+  return search(text || 'software engineer');
 }
 
 function createScriptedAssistant(): MockLanguageModelV4 {

@@ -5,7 +5,7 @@ import { db } from '@/server/db';
 import { detectJobSource } from '@/server/discovery/ats/detect';
 import { fetchBoard, fetchBoardJob, type Ats, type BoardRef, SLUG_PATTERN } from '@/server/discovery/ats/boards';
 import { extractJobPostings, jobLocationText, str } from '@/server/discovery/jsonld';
-import { isIsraelLocation, isRemoteLocation } from '@/server/discovery/location';
+import { asksForRemote, isIsraelLocation, isRemoteLocation, locationMatchesPlace } from '@/server/discovery/location';
 import { FetchBlockedError } from '@/server/discovery/net/safe-fetch';
 import { politeFetch } from '@/server/discovery/net/polite-fetch';
 import { needsPaste, normalizeUrl } from '@/server/discovery/normalize-url';
@@ -345,13 +345,12 @@ export async function searchJobs(
   });
 
   const wantedPlace = input.location?.trim();
+  // Remote roles only when asked for; otherwise only on-site/hybrid roles in the place asked for (or Israel).
+  const remoteWanted = input.remoteOnly || asksForRemote(wantedPlace);
   const filtered = found.filter(job => {
-    if (input.remoteOnly) return job.remote;
-    if (job.remote) return true;
-    if (wantedPlace && !/israel|ישראל/i.test(wantedPlace)) {
-      return job.location.toLowerCase().includes(wantedPlace.toLowerCase()) || isIsraelLocation(job.location);
-    }
-    return isIsraelLocation(job.location);
+    if (remoteWanted) return job.remote;
+    if (job.remote) return false;
+    return wantedPlace ? locationMatchesPlace(wantedPlace, job.location) : isIsraelLocation(job.location);
   });
 
   const ranked = rankJobs(filtered, {
