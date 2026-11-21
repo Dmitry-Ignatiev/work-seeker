@@ -22,15 +22,26 @@ interface JSearchJob {
 
 const TTL = 30 * 60 * 1000;
 
+/**
+ * Search parameters, Israel by default: JSearch searches the US unless told otherwise, so every request sets
+ * country=il, and a search without a city says "in Israel". Remote searches stay in Israel too (remote roles
+ * open to people here), with JSearch's work-from-home filter on.
+ */
+export function jsearchParams({ query, location, remoteOnly }: { query: string; location?: string; remoteOnly?: boolean }) {
+  const place = location?.trim();
+  const inIsrael = !place || /remote|anywhere|israel|ישראל|מרחוק/i.test(place) ? 'Israel' : `${place}, Israel`;
+  const params = new URLSearchParams({ query: `${query} in ${inIsrael}`, page: '1', num_pages: '1', country: 'il' });
+  if (remoteOnly || (place && /remote|מרחוק/i.test(place))) params.set('work_from_home', 'true');
+  return params;
+}
+
 /** JSearch (RapidAPI): aggregates Google for Jobs (LinkedIn, Indeed, Glassdoor…). Needs JSEARCH_API_KEY. */
 export const jsearch: SourceAdapter = {
   name: 'jsearch',
   label: 'JSearch',
   enabled: () => Boolean(process.env.JSEARCH_API_KEY),
-  async search({ query, location, remoteOnly }) {
-    const q = location ? `${query} in ${location}` : query;
-    const params = new URLSearchParams({ query: q, page: '1', num_pages: '1' });
-    if (remoteOnly) params.set('work_from_home', 'true');
+  async search(input) {
+    const params = jsearchParams(input);
     const data = await cached(`jsearch:${params}`, TTL, () =>
       getJson<{ data: JSearchJob[] }>(`https://jsearch.p.rapidapi.com/search?${params}`, {
         headers: {
