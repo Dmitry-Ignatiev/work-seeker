@@ -40,4 +40,9 @@ describe('jsearchLocation', () => {
     expect(jsearchLocation({ job_city: 'Tel Aviv-Yafo', job_country: 'US' })).toBe('Tel Aviv-Yafo, Israel');
     expect(jsearchLocation({ job_city: 'Austin', job_state: 'TX', job_country: 'US' })).toBe('Austin, TX, US');
   });
+
+  it('drops repeats and Israeli district codes', () => {
+    expect(jsearchLocation({ job_city: 'Rehovot', job_state: 'Israel', job_country: 'IL' })).toBe('Rehovot, Israel');
+    expect(jsearchLocation({ job_city: 'ירושלים', job_state: 'JM', job_country: 'IL' })).toBe('ירושלים, Israel');
+  });
 });

@@ -324,7 +324,7 @@ const defaultDeps = (): SearchDeps =>
 export async function searchJobs(
   input: SearchJobsInput,
   deps: SearchDeps = defaultDeps(),
-): Promise<{ jobs: JobSummary[]; sources: SourceStatus[] }> {
+): Promise<{ jobs: JobSummary[]; sources: SourceStatus[]; widenedFrom?: string }> {
   const query = input.query.trim().slice(0, 200);
   const params = { query, location: input.location, remoteOnly: input.remoteOnly };
 
@@ -347,14 +347,21 @@ export async function searchJobs(
   const wantedPlace = input.location?.trim();
   // Remote roles only when asked for; otherwise only on-site/hybrid roles in the place asked for (or Israel).
   const remoteWanted = input.remoteOnly || asksForRemote(wantedPlace);
-  const filtered = found.filter(job => {
+  let filtered = found.filter(job => {
     if (remoteWanted) return job.remote;
     if (job.remote) return false;
     return wantedPlace ? locationMatchesPlace(wantedPlace, job.location) : isIsraelLocation(job.location);
   });
+  // Nothing in that city or region (common outside the Center): show the closest matches elsewhere in Israel,
+  // and say so, rather than an empty result.
+  let widenedFrom: string | undefined;
+  if (filtered.length === 0 && wantedPlace && !remoteWanted && !locationMatchesPlace(wantedPlace, 'Israel')) {
+    filtered = found.filter(job => !job.remote && isIsraelLocation(job.location));
+    if (filtered.length > 0) widenedFrom = wantedPlace;
+  }
 
   const ranked = rankJobs(filtered, {
-    query: [query, wantedPlace].filter(Boolean).join(' '),
+    query: [query, widenedFrom ? undefined : wantedPlace].filter(Boolean).join(' '),
     seniority: input.seniority,
   }).slice(0, Math.min(input.limit ?? 12, 25));
 
@@ -366,7 +373,7 @@ export async function searchJobs(
   const ids = await upsertJobs(ranked.map(r => r.job));
   const rows = await db.job.findMany({ where: { id: { in: ids } }, select: summarySelect });
   const byId = new Map(rows.map(row => [row.id, row]));
-  return { jobs: ids.map(id => toSummary(byId.get(id)!)), sources };
+  return { jobs: ids.map(id => toSummary(byId.get(id)!)), sources, ...(widenedFrom ? { widenedFrom } : {}) };
 }
 
 // ───────────────────────── Reading one job ─────────────────────────

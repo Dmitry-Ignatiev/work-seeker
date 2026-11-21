@@ -52,6 +52,9 @@ export function createAssistantTools(deps: AssistantToolDeps = {}) {
       toModelOutput: ({ output }) => ({
         type: 'text',
         value: [
+          ...(output.widenedFrom
+            ? [`No jobs in "${output.widenedFrom}" right now. These are elsewhere in Israel: say so in one short sentence.`]
+            : []),
           output.jobs.length ? output.jobs.map(jobLine).join('\n') : 'No matching jobs.',
           `Sources: ${output.sources.map(s => (s.ok ? `${s.source} ok (${s.found})` : `${s.source} FAILED: ${s.error}`)).join('; ')}`,
         ].join('\n'),

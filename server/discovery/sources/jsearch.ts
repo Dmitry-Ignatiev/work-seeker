@@ -44,8 +44,14 @@ export function jsearchParams({ query, location, remoteOnly }: { query: string; 
 export function jsearchLocation(j: Pick<JSearchJob, 'job_city' | 'job_state' | 'job_country' | 'job_is_remote'>): string {
   const place = [j.job_city, j.job_state].filter(Boolean).join(', ');
   const mislabeled = j.job_country === 'US' && isIsraelLocation(place);
-  const country = j.job_country === 'IL' || mislabeled ? 'Israel' : j.job_country;
-  const parts = [place, country].filter(Boolean);
+  const israel = j.job_country === 'IL' || mislabeled;
+  const country = israel ? 'Israel' : j.job_country;
+  // No repeats ("Israel, Israel") and, in Israel, no district codes ("JM", "M").
+  const parts: string[] = [];
+  for (const part of [j.job_city, j.job_state, country]) {
+    if (!part || (israel && part !== country && /^[A-Z]{1,2}$/.test(part))) continue;
+    if (!parts.some(p => p.toLowerCase() === part.toLowerCase())) parts.push(part);
+  }
   return parts.join(', ') || (j.job_is_remote ? 'Remote' : 'Unknown');
 }
 

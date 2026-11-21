@@ -101,6 +101,21 @@ describe('jobs service', () => {
       expect(await titles('Center')).toEqual(['Backend Engineer', 'Backend Lead']);
       expect(await titles('Israel')).toEqual(['Backend Developer', 'Backend Engineer', 'Backend Lead']);
     });
+
+    it('shows jobs elsewhere in Israel, and says so, when the place asked for has none', async () => {
+      const sources = [
+        adapter('A', async () => [
+          job({ id: 'jsearch:1', source: 'jsearch', title: 'Backend Engineer', location: 'Rehovot, Israel' }),
+          job({ id: 'jsearch:2', source: 'jsearch', title: 'Backend Dev', location: 'Remote', remote: true }),
+        ]),
+      ];
+      const south = await jobs.searchJobs({ query: 'backend', location: 'South' }, { sources });
+      expect(south.widenedFrom).toBe('South');
+      expect(south.jobs.map(j => j.title)).toEqual(['Backend Engineer']);
+      // A place with matches isn't widened.
+      const center = await jobs.searchJobs({ query: 'backend', location: 'Center' }, { sources });
+      expect(center.widenedFrom).toBeUndefined();
+    });
   });
 
   describe('company boards', () => {
