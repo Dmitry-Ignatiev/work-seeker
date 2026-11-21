@@ -1,5 +1,5 @@
 {
-  "_format": "Israeli tech companies with public job boards. Verified 2026-11-06: each board answered and listed roles in Israel. Re-check with `npm run scrape:check`.",
+  "_format": "Israeli tech companies with public job boards. Verified 2026-11-21: each board answered and listed roles in Israel. Re-check with `npm run scrape:check`.",
   "boards": [
     { "ats": "greenhouse", "slug": "catonetworks", "companyName": "Cato Networks" },
     { "ats": "greenhouse", "slug": "taboola", "companyName": "Taboola" },
@@ -38,6 +38,20 @@
     { "ats": "greenhouse", "slug": "optimove", "companyName": "Optimove" },
     { "ats": "ashby", "slug": "redis", "companyName": "Redis" },
     { "ats": "greenhouse", "slug": "obligo", "companyName": "Obligo" },
-    { "ats": "greenhouse", "slug": "torq", "companyName": "Torq" }
+    { "ats": "greenhouse", "slug": "torq", "companyName": "Torq" },
+    { "ats": "greenhouse", "slug": "mongodb", "companyName": "MongoDB" },
+    { "ats": "greenhouse", "slug": "gitlab", "companyName": "GitLab" },
+    { "ats": "greenhouse", "slug": "tipaltisolutions", "companyName": "Tipalti" },
+    { "ats": "greenhouse", "slug": "databricks", "companyName": "Databricks" },
+    { "ats": "greenhouse", "slug": "datadog", "companyName": "Datadog" },
+    { "ats": "greenhouse", "slug": "guidde", "companyName": "Guidde" },
+    { "ats": "greenhouse", "slug": "okta", "companyName": "Okta" },
+    { "ats": "greenhouse", "slug": "zscaler", "companyName": "Zscaler" },
+    { "ats": "greenhouse", "slug": "guardz", "companyName": "Guardz" },
+    { "ats": "ashby", "slug": "unit", "companyName": "Unit" },
+    { "ats": "greenhouse", "slug": "elastic", "companyName": "Elastic" },
+    { "ats": "greenhouse", "slug": "fireblocks", "companyName": "Fireblocks" },
+    { "ats": "greenhouse", "slug": "safebreach", "companyName": "SafeBreach" },
+    { "ats": "greenhouse", "slug": "augury", "companyName": "Augury" }
   ]
 }
