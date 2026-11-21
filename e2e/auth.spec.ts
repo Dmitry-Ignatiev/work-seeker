@@ -30,11 +30,23 @@ test('a new user can sign up, lands in the chat, and can sign out', async ({ pag
   await expect(page).toHaveURL(/\/sign-in/);
 });
 
-test('a visitor who is already signed in skips the sign-in page', async ({ page }) => {
-  await signUp(page, 'Returning User', 'back');
-  // From the homepage's "Sign in" / "Start chatting" buttons: straight to the chat.
+test('the homepage offers sign-up to new visitors and "Open my chat" to signed-in ones', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('link', { name: 'Sign in' }).first().click();
+  await expect(page.getByRole('link', { name: 'Sign up free' })).toBeVisible();
+  await page.getByRole('link', { name: 'Start chatting' }).first().click();
+  await expect(page).toHaveURL(/\/sign-up$/);
+
+  await signUp(page, 'Returning User', 'back');
+  await page.goto('/');
+  await expect(page.getByTestId('landing-user')).toHaveText('Returning User');
+  await expect(page.getByRole('link', { name: 'Sign up free' })).toHaveCount(0);
+  await page.getByRole('link', { name: 'Open my chat' }).first().click();
+  await expect(page).toHaveURL(/\/assistant$/);
+});
+
+test('a visitor who is already signed in skips the sign-in and sign-up pages', async ({ page }) => {
+  await signUp(page, 'Returning User', 'back');
+  await page.goto('/sign-up');
   await expect(page).toHaveURL(/\/assistant$/);
   // Where they were heading is kept; another site is not.
   await page.goto('/sign-in?next=%2Fmy-cvs');

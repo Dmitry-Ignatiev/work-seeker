@@ -4,7 +4,7 @@ import { getCurrentUser } from '@/server/session';
 import { SignOutButton } from './sign-out-button';
 
 /** "Dima Ignatiev" → "DI"; one word → its first letter. */
-function initials(name: string) {
+export function initials(name: string) {
   const words = name.trim().split(/\s+/).filter(Boolean);
   return (words.length > 1 ? words[0][0] + words.at(-1)![0] : (words[0]?.[0] ?? '?')).toUpperCase();
 }
