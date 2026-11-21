@@ -42,6 +42,18 @@ test('example prompts start a search', async ({ page }) => {
   await expect(page.getByLabel('Jobs found').getByRole('article').first()).toBeVisible();
 });
 
+test('a search without a place gets "where would you like to work?" first, then searches there', async ({ page }) => {
+  await signUp(page, 'Chat Tester', 'where');
+  await page.getByRole('button', { name: 'Junior frontend React jobs' }).click();
+  await expect(page.getByTestId('assistant-message').last()).toContainText('Where would you like to work?');
+  await expect(page.getByTestId('search-sources')).toHaveCount(0);
+
+  const message = page.getByLabel('Message');
+  await message.fill('Tel Aviv');
+  await message.press('Enter');
+  await expect(page.getByTestId('search-sources')).toBeVisible();
+});
+
 test('the chat API refuses signed-out requests', async ({ request }) => {
   const response = await request.post('/api/chat', { data: { messages: [{ id: '1', role: 'user', parts: [{ type: 'text', text: 'hi' }] }] } });
   expect(response.status()).toBe(401);

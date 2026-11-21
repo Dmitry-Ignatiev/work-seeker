@@ -68,6 +68,20 @@ function textOf(message: PromptMessage | undefined): string {
     .join(' ');
 }
 
+/** Words that say where to work (English and Hebrew); a search request without one gets a question first. */
+const PLACE = /tel aviv|center|centre|central|jerusalem|haifa|north|south|beer ?sheva|herzliya|petah tikva|ramat gan|remote|anywhere|israel|תל אביב|מרכז|ירושלים|חיפה|צפון|דרום|באר שבע|הרצליה|מרחוק|בכל הארץ|ישראל/i;
+export const MOCK_WHERE_QUESTION =
+  'Where would you like to work? Tel Aviv, the Center, Jerusalem, Haifa and the North, the South, remote, or anywhere in Israel?';
+
+/** The user's earlier message that the assistant answered with the "where" question, if the last turn was that. */
+function roleBeforeWhereQuestion(callOptions: unknown): string | undefined {
+  const prompt = (callOptions as { prompt?: PromptMessage[] }).prompt ?? [];
+  const asked = prompt.at(-2);
+  if (asked?.role !== 'assistant' || !textOf(asked).includes('Where would you like to work')) return undefined;
+  const role = prompt.at(-3);
+  return role?.role === 'user' ? textOf(role).trim() : undefined;
+}
+
 /** Decides the next step like a (very) simple agent: search for job requests, then summarise. */
 function nextStep(callOptions: unknown): { toolName: string; input: unknown } | { text: string } {
   const last = lastMessage(callOptions);
@@ -94,6 +108,10 @@ function nextStep(callOptions: unknown): { toolName: string; input: unknown } | 
   const url = text.match(/https?:\/\/\S+/)?.[0];
   if (url) return { toolName: 'addJob', input: { url } };
   if (/weather|joke|recipe/i.test(text)) return { text: 'I can only help with job search and CVs.' };
+  // Like the real prompt: no place in the request (or the answer to the "where" question) → ask first.
+  const role = roleBeforeWhereQuestion(callOptions);
+  if (role) return { toolName: 'searchJobs', input: { query: `${role} ${text}`.slice(0, 120) } };
+  if (!PLACE.test(text)) return { text: MOCK_WHERE_QUESTION };
   return { toolName: 'searchJobs', input: { query: text.slice(0, 120) || 'software engineer' } };
 }
 

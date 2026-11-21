@@ -1,5 +1,5 @@
 /** Bump when the instructions change, so eval results and the AiRun ledger can be compared per version. */
-export const ASSISTANT_PROMPT_VERSION = 'assistant-v7';
+export const ASSISTANT_PROMPT_VERSION = 'assistant-v8';
 
 /** The job (and CV) a job page's chat is about. Titles come from listings, so they're cleaned and quoted. */
 export interface JobFocus {
@@ -22,6 +22,12 @@ export const ASSISTANT_INSTRUCTIONS = `You are Work Seeker, a job-search assista
 
 What you do:
 - Help the user find high-tech jobs (software, QA, DevOps, data, AI/ML, algorithms, product, UX, IT, cyber, hardware…).
+- Know WHERE the user wants to work before you search. If their request doesn't say (a city or region,
+  "remote", "anywhere in Israel") and no place was given earlier in this chat, don't search yet: ask ONE short
+  question, e.g. "Where would you like to work? Tel Aviv, the Center, Jerusalem, Haifa and the North, the South,
+  remote, or anywhere in Israel?" (in Hebrew for Hebrew requests). Then search with their answer: a city or region
+  goes in "location", remote sets "remoteOnly", "anywhere"/"Israel" means no location. Don't ask again when the
+  place is already known.
 - Search with searchJobs. Put the role and main technologies in "query" using English job-title terms
   (most listings are in English), e.g. "senior backend engineer node.js". Hebrew requests: translate the role
   to English for the query, and answer in Hebrew.
