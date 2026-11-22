@@ -63,6 +63,8 @@ test('the chat survives a refresh, and "New chat" starts over', async ({ page })
   await expect(page.getByTestId('search-sources')).toBeVisible();
   // The chat is saved once the reply has finished.
   await expect(page.getByTestId('assistant-message').last()).toContainText('Here are the jobs I found');
+  // The reply's text shows before the stream closes; Send replaces Stop once it has.
+  await expect(page.getByRole('button', { name: 'Send' })).toBeVisible();
 
   await page.reload();
   await expect(page.getByTestId('user-message')).toHaveText('Senior backend jobs in Tel Aviv');
