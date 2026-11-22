@@ -1,3 +1,4 @@
+import { JOB_SITES } from '@/server/discovery/publisher';
 import 'server-only';
 import { tool } from 'ai';
 import { z } from 'zod';
@@ -46,12 +47,19 @@ export function createAssistantTools(deps: AssistantToolDeps = {}) {
         location: z.string().max(60).optional().describe('City or "Israel". Omit for anywhere in Israel'),
         remoteOnly: z.boolean().optional(),
         seniority: z.enum(['junior', 'mid', 'senior', 'lead']).optional(),
+        site: z
+          .enum(JOB_SITES)
+          .optional()
+          .describe('Only when the user asks for jobs from one job site (LinkedIn, Glassdoor, GotFriends…); omit to search everywhere'),
       }),
       contextSchema: userContext,
       execute: async input => searchJobs(input, deps.search),
       toModelOutput: ({ output }) => ({
         type: 'text',
         value: [
+          ...(output.widenedFrom
+            ? [`No jobs in "${output.widenedFrom}" right now. These are elsewhere in Israel: say so in one short sentence.`]
+            : []),
           output.jobs.length ? output.jobs.map(jobLine).join('\n') : 'No matching jobs.',
           `Sources: ${output.sources.map(s => (s.ok ? `${s.source} ok (${s.found})` : `${s.source} FAILED: ${s.error}`)).join('; ')}`,
         ].join('\n'),

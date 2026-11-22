@@ -2,7 +2,7 @@
 
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport, lastAssistantMessageIsCompleteWithApprovalResponses } from 'ai';
-import { ArrowUpIcon, SquareIcon } from 'lucide-react';
+import { ArrowUpIcon, SquareIcon, SquarePenIcon } from 'lucide-react';
 import { useEffect, useRef, useState, useSyncExternalStore, type ComponentType } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -101,7 +101,7 @@ function Chat({
         },
       }),
   );
-  const { messages, sendMessage, status, stop, error, addToolApprovalResponse } = useChat<AssistantMessage>({
+  const { messages, setMessages, sendMessage, status, stop, error, addToolApprovalResponse } = useChat<AssistantMessage>({
     id: chatKey,
     messages: initialMessages,
     transport,
@@ -122,6 +122,20 @@ function Chat({
       // Full or blocked storage: the chat still works, it just won't be restored.
     }
   }, [messages, busy, storageKey]);
+
+  // Starts over: stops a reply in progress and forgets this chat's history (here and in the tab's storage).
+  const newChat = () => {
+    void stop();
+    queued.current = null;
+    setMessages([]);
+    setInput('');
+    try {
+      sessionStorage.removeItem(storageKey);
+    } catch {
+      // Storage blocked: nothing was stored.
+    }
+    inputRef.current?.focus();
+  };
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -166,6 +180,13 @@ function Chat({
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-4">
+      {messages.length > 0 && (
+        <div className="flex justify-end">
+          <Button variant="outline" size="sm" className="rounded-full" onClick={newChat}>
+            <SquarePenIcon aria-hidden /> New chat
+          </Button>
+        </div>
+      )}
       {messages.length === 0 && EmptyState ? (
         <EmptyState onAsk={send} />
       ) : messages.length === 0 ? (

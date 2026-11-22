@@ -42,7 +42,7 @@ describe('jobs service', () => {
   });
 
   describe('searchJobs', () => {
-    it('merges sources, keeps Israeli and remote roles, dedupes, and saves the results', async () => {
+    it('merges sources, keeps Israeli roles, leaves remote ones out unless asked, dedupes, and saves', async () => {
       const telAviv = job({ id: 'jsearch:1', source: 'jsearch', postedAt: '2026-11-05T00:00:00Z' });
       const london = job({ id: 'jsearch:2', source: 'jsearch', location: 'London' });
       const remote = job({ id: 'remoteok:3', source: 'remoteok', title: 'Backend Developer', location: 'Worldwide', remote: true });
@@ -58,11 +58,10 @@ describe('jobs service', () => {
 
       const result = await jobs.searchJobs({ query: 'backend' }, { sources });
 
-      expect(result.jobs.map(j => j.title).sort()).toEqual(['Backend Developer', 'Backend Engineer']);
-      expect(result.jobs.find(j => j.title === 'Backend Developer')).toMatchObject({ remote: true, source: 'Remote OK' });
+      expect(result.jobs.map(j => j.title)).toEqual(['Backend Engineer']);
       expect(result.sources).toEqual([
         { source: 'Google for Jobs', ok: true, found: 1 },
-        { source: 'Remote OK', ok: true, found: 1 },
+        { source: 'Remote OK', ok: true, found: 0 },
         { source: 'Broken board', ok: false, found: 0, error: 'unavailable right now' },
         { source: 'Arbeitnow', ok: true, found: 0 },
       ]);
@@ -70,7 +69,7 @@ describe('jobs service', () => {
       // The same search again updates the saved rows instead of duplicating them.
       const again = await jobs.searchJobs({ query: 'backend' }, { sources });
       expect(again.jobs.map(j => j.id).sort()).toEqual(result.jobs.map(j => j.id).sort());
-      expect(await db.job.count()).toBe(2);
+      expect(await db.job.count()).toBe(1);
     });
 
     it('honours remoteOnly', async () => {
@@ -82,6 +81,58 @@ describe('jobs service', () => {
       ];
       const result = await jobs.searchJobs({ query: 'backend', remoteOnly: true }, { sources });
       expect(result.jobs.map(j => j.remote)).toEqual([true]);
+      // Saying "remote" as the place works the same way.
+      const asked = await jobs.searchJobs({ query: 'backend', location: 'Remote' }, { sources });
+      expect(asked.jobs.map(j => j.remote)).toEqual([true]);
+    });
+
+    it('keeps only jobs in the city or region asked for', async () => {
+      const sources = [
+        adapter('A', async () => [
+          job({ id: 'jsearch:1', source: 'jsearch', title: 'Backend Engineer', location: 'Tel Aviv, Israel' }),
+          job({ id: 'jsearch:2', source: 'jsearch', title: 'Backend Developer', location: 'Jerusalem, Israel' }),
+          job({ id: 'jsearch:3', source: 'jsearch', title: 'Backend Lead', location: 'Petah Tikva, Israel' }),
+          job({ id: 'jsearch:4', source: 'jsearch', title: 'Backend Dev', location: 'Remote - EMEA', remote: true }),
+        ]),
+      ];
+      const titles = async (location: string) =>
+        (await jobs.searchJobs({ query: 'backend', location }, { sources })).jobs.map(j => j.title).sort();
+      expect(await titles('Jerusalem')).toEqual(['Backend Developer']);
+      expect(await titles('Center')).toEqual(['Backend Engineer', 'Backend Lead']);
+      expect(await titles('Israel')).toEqual(['Backend Developer', 'Backend Engineer', 'Backend Lead']);
+    });
+
+    it('limits a search to one job site through Google for Jobs, and names the site on each card', async () => {
+      const jsearchSource = adapter('JSearch', async () => [
+        job({ id: 'jsearch:1', source: 'jsearch', title: 'QA Engineer', url: 'https://il.linkedin.com/jobs/view/1' }),
+        job({ id: 'jsearch:2', source: 'jsearch', title: 'QA Lead', url: 'https://www.gotfriends.co.il/jobslobby/qa/2/' }),
+      ]);
+      const boards = {
+        ...adapter('Company careers pages', async () => [job({ id: 'greenhouse:a:3', source: 'greenhouse', title: 'QA Tester' })]),
+        name: 'greenhouse' as const,
+      };
+
+      const linkedin = await jobs.searchJobs({ query: 'qa', site: 'linkedin' }, { sources: [jsearchSource, boards] });
+      expect(linkedin.jobs.map(j => [j.title, j.source])).toEqual([['QA Engineer', 'LinkedIn']]);
+      expect(linkedin.sources.map(s => s.source)).toEqual(['JSearch']);
+
+      const all = await jobs.searchJobs({ query: 'qa' }, { sources: [jsearchSource, boards] });
+      expect(all.jobs.map(j => j.source).sort()).toEqual(['Company careers page', 'GotFriends', 'LinkedIn']);
+    });
+
+    it('shows jobs elsewhere in Israel, and says so, when the place asked for has none', async () => {
+      const sources = [
+        adapter('A', async () => [
+          job({ id: 'jsearch:1', source: 'jsearch', title: 'Backend Engineer', location: 'Rehovot, Israel' }),
+          job({ id: 'jsearch:2', source: 'jsearch', title: 'Backend Dev', location: 'Remote', remote: true }),
+        ]),
+      ];
+      const south = await jobs.searchJobs({ query: 'backend', location: 'South' }, { sources });
+      expect(south.widenedFrom).toBe('South');
+      expect(south.jobs.map(j => j.title)).toEqual(['Backend Engineer']);
+      // A place with matches isn't widened.
+      const center = await jobs.searchJobs({ query: 'backend', location: 'Center' }, { sources });
+      expect(center.widenedFrom).toBeUndefined();
     });
   });
 

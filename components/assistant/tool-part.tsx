@@ -42,9 +42,14 @@ export function ToolPart({ part, onAsk, onApproval }: { part: Part } & ToolPartA
       if (part.state !== 'output-available') {
         return <Working>Searching job boards{part.input?.query ? ` for “${part.input.query}”` : ''}…</Working>;
       }
-      const { jobs, sources } = part.output;
+      const { jobs, sources, widenedFrom } = part.output;
       return (
         <div className="flex flex-col gap-3">
+          {widenedFrom && (
+            <p className="rounded-lg bg-accent px-3 py-2 text-sm text-accent-foreground" dir="auto" data-testid="search-widened">
+              Nothing in {widenedFrom} right now. Showing the closest matches elsewhere in Israel.
+            </p>
+          )}
           <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground" data-testid="search-sources">
             <SearchIcon className="size-3.5" aria-hidden />
             <span>

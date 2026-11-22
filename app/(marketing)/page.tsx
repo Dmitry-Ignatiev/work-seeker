@@ -1,6 +1,7 @@
-import { ArrowRightIcon, CheckIcon, DownloadIcon, ShieldCheckIcon, TriangleAlertIcon } from 'lucide-react';
+import { CheckIcon, DownloadIcon, ShieldCheckIcon, TriangleAlertIcon } from 'lucide-react';
 import Link from 'next/link';
 import { LogoMark } from '@/components/brand/logo-mark';
+import { LandingHeaderAuth, LandingStartButton } from '@/components/marketing/landing-auth';
 import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -28,7 +29,6 @@ const TRUTH_RULES = [
   'What’s missing is listed for you to decide, not quietly added.',
 ];
 
-const startButton = cn(buttonVariants({ size: 'lg' }), 'h-12 gap-2 rounded-xl px-5 text-base');
 
 /** Labelled sample of a chat result: what a search and a tailored CV look like. */
 function ExamplePreview() {
@@ -91,16 +91,7 @@ export default function LandingPage() {
             </a>
           </nav>
           <div className="ml-auto flex items-center gap-2">
-            {/* Both links open the same page: on phones only the main one shows, so the header stays on one row. */}
-            <Link
-              href="/sign-in"
-              className={cn(buttonVariants({ variant: 'ghost' }), 'hidden h-11 px-3.5 text-[15px] sm:inline-flex')}
-            >
-              Sign in
-            </Link>
-            <Link href="/sign-in" className={cn(buttonVariants(), 'h-11 rounded-xl px-4 text-[15px]')}>
-              Start chatting
-            </Link>
+            <LandingHeaderAuth />
           </div>
         </div>
       </header>
@@ -120,9 +111,7 @@ export default function LandingPage() {
                 using only experience you actually have.
               </p>
               <div className="flex flex-wrap gap-3">
-                <Link href="/sign-in" className={startButton}>
-                  Start chatting <ArrowRightIcon aria-hidden />
-                </Link>
+                <LandingStartButton />
                 <a
                   href="#how"
                   className={cn(buttonVariants({ variant: 'outline', size: 'lg' }), 'h-12 rounded-xl px-5 text-base')}
@@ -212,9 +201,7 @@ export default function LandingPage() {
           <p className="max-w-xl text-lg text-muted-foreground">
             Start with one sentence about the job you want. Upload your CV when you’re ready to tailor it.
           </p>
-          <Link href="/sign-in" className={startButton}>
-            Start chatting <ArrowRightIcon aria-hidden />
-          </Link>
+          <LandingStartButton />
         </section>
       </main>
 
