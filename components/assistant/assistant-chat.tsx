@@ -2,7 +2,7 @@
 
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport, lastAssistantMessageIsCompleteWithApprovalResponses } from 'ai';
-import { ArrowUpIcon, SquareIcon, SquarePenIcon } from 'lucide-react';
+import { ArrowUpIcon, SearchIcon, SquareIcon } from 'lucide-react';
 import { useEffect, useRef, useState, useSyncExternalStore, type ComponentType } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -186,13 +186,6 @@ function Chat({
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-4">
-      {messages.length > 0 && (
-        <div className="flex justify-end">
-          <Button variant="outline" size="sm" className="rounded-full" onClick={newChat}>
-            <SquarePenIcon aria-hidden /> New chat
-          </Button>
-        </div>
-      )}
       {messages.length === 0 && EmptyState ? (
         <EmptyState onAsk={send} />
       ) : messages.length === 0 ? (
@@ -263,6 +256,13 @@ function Chat({
           send(input);
         }}
       >
+        {messages.length > 0 && (
+          // Next to the box, so it stays in reach however long the chat gets.
+          <Button type="button" variant="outline" className="h-10 shrink-0" onClick={newChat} aria-label="New search">
+            <SearchIcon aria-hidden />
+            <span className="hidden sm:inline">New search</span>
+          </Button>
+        )}
         <Textarea
           ref={inputRef}
           aria-label="Message"
