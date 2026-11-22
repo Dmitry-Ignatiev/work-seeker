@@ -207,6 +207,9 @@ describe('ranking', () => {
     expect(titleMatchesRole('Frontend / Full Stack Developer', 'frontend developer')).toBe(true);
     expect(titleMatchesRole('Full Stack Engineer', 'backend engineer')).toBe(false);
     expect(titleMatchesRole('Full Stack Engineer (React)', 'react developer')).toBe(true);
+    expect(titleMatchesRole('Network Automation Engineer', 'junior QA engineer')).toBe(false);
+    expect(titleMatchesRole('Automation Engineer', 'junior QA engineer')).toBe(true);
+    expect(titleMatchesRole('Network QA Engineer', 'QA engineer')).toBe(true);
     // Only generic words: any engineer/developer title is relevant.
     expect(titleMatchesRole('Senior Software Engineer', 'software engineer')).toBe(true);
     expect(titleMatchesRole('Marketing Manager', 'software engineer')).toBe(false);

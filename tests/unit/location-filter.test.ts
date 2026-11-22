@@ -7,6 +7,10 @@ describe('locationMatchesPlace', () => {
     expect(locationMatchesPlace('המרכז', 'Tel Aviv-Yafo')).toBe(true);
     expect(locationMatchesPlace('Haifa and the North', 'Yokneam Illit')).toBe(true);
     expect(locationMatchesPlace('South', 'Beer Sheva')).toBe(true);
+    // Sderot is in the South: a search there covers the whole region.
+    expect(locationMatchesPlace('Sderot', "Be'er Sheva, Israel")).toBe(true);
+    expect(locationMatchesPlace('שדרות', 'Ashkelon')).toBe(true);
+    expect(locationMatchesPlace('Sderot', 'Tel Aviv')).toBe(false);
   });
 
   it('keeps other cities out', () => {

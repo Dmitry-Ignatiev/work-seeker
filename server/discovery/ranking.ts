@@ -82,6 +82,8 @@ export function titleMatchesRole(title: string, query: string): boolean {
 const OTHER_ROLES: Record<string, string[]> = {
   frontend: ['fullstack', 'backend'],
   backend: ['fullstack', 'frontend'],
+  // "Automation" is a QA word, but "Network Automation Engineer" is not a QA role.
+  qa: ['network', 'marketing', 'sales'],
 };
 
 /**

@@ -35,8 +35,9 @@ const REGIONS: { asked: RegExp; located: RegExp }[] = [
     located: /haifa|yo[kq]neam|nazareth|caesarea|matam|karmiel|tiberias|חיפה|יקנעם|הצפון|נצרת|קיסריה/i,
   },
   {
-    asked: /\bsouth\b|be'?er[\s-]?sheva|beersheba|דרום|באר[\s-]?שבע/i,
-    located: /be'?er[\s-]?sheva|beersheba|ashdod|ashkelon|eilat|באר[\s-]?שבע|אשדוד|הדרום/i,
+    asked: /\bsouth\b|be'?er[\s-]?sheva|beersheba|sderot|netivot|ofakim|ashkelon|kiryat[\s-]?gat|dimona|yeruham|דרום|באר[\s-]?שבע|שדרות|נתיבות|אופקים|אשקלון|קרית[\s-]?גת|דימונה/i,
+    located:
+      /be'?er[\s-]?sheva|beersheba|ashdod|ashkelon|eilat|sderot|netivot|ofakim|kiryat[\s-]?gat|dimona|yeruham|באר[\s-]?שבע|אשדוד|אשקלון|שדרות|נתיבות|אופקים|קרית[\s-]?גת|דימונה|הדרום/i,
   },
 ];
 
