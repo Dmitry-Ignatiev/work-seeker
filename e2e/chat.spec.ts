@@ -54,9 +54,9 @@ test('a search without a place gets "where would you like to work?" first, then 
   await expect(page.getByTestId('search-sources')).toBeVisible();
 });
 
-test('the chat survives a refresh, and "New chat" starts over', async ({ page }) => {
+test('the chat survives a refresh, and "New search" starts over', async ({ page }) => {
   await signUp(page, 'Chat Tester', 'newchat');
-  await expect(page.getByRole('button', { name: 'New chat' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'New search' })).toHaveCount(0);
   const message = page.getByLabel('Message');
   await message.fill('Senior backend jobs in Tel Aviv');
   await message.press('Enter');
@@ -73,7 +73,7 @@ test('the chat survives a refresh, and "New chat" starts over', async ({ page })
   await page.reload();
   await expect(page.getByTestId('user-message')).toHaveText('Senior backend jobs in Tel Aviv');
 
-  await page.getByRole('button', { name: 'New chat' }).click();
+  await page.getByRole('button', { name: 'New search' }).click();
   await expect(page.getByTestId('user-message')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Find your next high-tech job' })).toBeVisible();
   await page.reload();
