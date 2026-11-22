@@ -36,6 +36,15 @@ const SYNONYMS: Record<string, string[]> = {
   product: ['product'],
 };
 
+/** The query without its level words: "junior QA engineer" → "QA engineer". */
+export function withoutSeniority(query: string): string {
+  return query
+    .split(/\s+/)
+    .filter(w => !SENIORITY_WORDS.has(w.toLowerCase().replace(/[^a-z]/g, '')))
+    .join(' ')
+    .trim();
+}
+
 const compact = (s: string) => s.toLowerCase().replace(/[\s.\-_/]+/g, '');
 
 const norm = (s: string) =>
