@@ -71,8 +71,18 @@ export function titleMatchesRole(title: string, query: string): boolean {
     const generic = keywords(query).filter(w => GENERIC_WORDS.has(w)).map(compact);
     return generic.length === 0 || generic.some(has);
   }
+  if (terms.some(term => (OTHER_ROLES[term] ?? []).some(has) && !has(term))) return false;
   return terms.some(term => (SYNONYMS[term] ?? [term]).some(has));
 }
+
+/**
+ * Roles that are not the one asked for: a "frontend" search must not return "Full Stack Engineer (React)"
+ * just because React is a frontend word. A title naming both ("Frontend / Full Stack") still matches.
+ */
+const OTHER_ROLES: Record<string, string[]> = {
+  frontend: ['fullstack', 'backend'],
+  backend: ['fullstack', 'frontend'],
+};
 
 /**
  * Words to look for in job titles when pre-filtering stored jobs (SQL "contains"): role words, their

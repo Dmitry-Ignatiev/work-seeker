@@ -198,6 +198,15 @@ describe('ranking', () => {
     expect(titleMatchesRole('Senior DevOps Engineer- IL', 'senior devops engineer kubernetes aws')).toBe(true);
     expect(titleMatchesRole('Senior Applications & Integrations Engineer', 'senior devops engineer kubernetes aws')).toBe(false);
     expect(titleMatchesRole('Customer Success Manager', 'customer success')).toBe(true);
+    // A frontend search doesn't return full stack or backend roles, even with a frontend framework in the title.
+    expect(titleMatchesRole('Full Stack Developer (React/Node)', 'frontend developer')).toBe(false);
+    expect(titleMatchesRole('Full-Stack Engineer, Angular', 'frontend')).toBe(false);
+    expect(titleMatchesRole('Backend Engineer', 'frontend developer')).toBe(false);
+    expect(titleMatchesRole('React Developer', 'frontend developer')).toBe(true);
+    expect(titleMatchesRole('Front End Engineer', 'frontend developer')).toBe(true);
+    expect(titleMatchesRole('Frontend / Full Stack Developer', 'frontend developer')).toBe(true);
+    expect(titleMatchesRole('Full Stack Engineer', 'backend engineer')).toBe(false);
+    expect(titleMatchesRole('Full Stack Engineer (React)', 'react developer')).toBe(true);
     // Only generic words: any engineer/developer title is relevant.
     expect(titleMatchesRole('Senior Software Engineer', 'software engineer')).toBe(true);
     expect(titleMatchesRole('Marketing Manager', 'software engineer')).toBe(false);
