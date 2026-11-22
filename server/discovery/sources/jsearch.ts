@@ -1,6 +1,7 @@
 import { cached, getJson } from '../http';
 import { isIsraelLocation } from '../location';
 import { siteName, type JobSite } from '../publisher';
+import { withoutSeniority } from '../ranking';
 import { formatSalary } from '../text';
 import type { Job, SourceAdapter } from '../types';
 
@@ -41,10 +42,14 @@ export function jsearchParams({
   site?: JobSite;
 }) {
   const place = location?.trim();
-  const inIsrael = !place || /remote|anywhere|israel|ישראל|מרחוק/i.test(place) ? 'Israel' : `${place}, Israel`;
+  const wholeCountry = !place || /remote|anywhere|israel|ישראל|מרחוק/i.test(place);
+  const inIsrael = wholeCountry ? 'Israel' : `${place}, Israel`;
+  // In one city, few jobs say "junior" or "senior": asking for that finds juniors elsewhere instead of this
+  // city's jobs. The level is left to the ranking, which drops the wrong level and puts the right one first.
+  const role = wholeCountry ? query : withoutSeniority(query) || query;
   // "via linkedin" is JSearch's own way to ask for one site's listings.
   const via = site ? ` via ${siteName(site)}` : '';
-  const params = new URLSearchParams({ query: `${query} in ${inIsrael}${via}`, num_pages: '1', country: 'il' });
+  const params = new URLSearchParams({ query: `${role} in ${inIsrael}${via}`, num_pages: '1', country: 'il' });
   if (remoteOnly || (place && /remote|מרחוק/i.test(place))) params.set('work_from_home', 'true');
   return params;
 }

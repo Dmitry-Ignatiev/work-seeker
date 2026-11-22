@@ -18,6 +18,13 @@ describe('jsearchParams', () => {
     expect(params({ query: 'data scientist', location: 'Israel' }).query).toBe('data scientist in Israel');
   });
 
+  it('leaves the level out in one city (the ranking applies it), but keeps it country-wide', () => {
+    expect(params({ query: 'junior QA engineer', location: 'Sderot' }).query).toBe('QA engineer in Sderot, Israel');
+    expect(params({ query: 'Senior backend engineer', location: 'Haifa' }).query).toBe('backend engineer in Haifa, Israel');
+    expect(params({ query: 'junior QA engineer' }).query).toBe('junior QA engineer in Israel');
+    expect(params({ query: 'junior', location: 'Sderot' }).query).toBe('junior in Sderot, Israel');
+  });
+
   it('asks for remote roles open to people in Israel when remote is wanted', () => {
     expect(params({ query: 'devops engineer', remoteOnly: true })).toMatchObject({
       query: 'devops engineer in Israel',
