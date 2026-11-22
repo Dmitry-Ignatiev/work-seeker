@@ -65,6 +65,10 @@ test('the chat survives a refresh, and "New chat" starts over', async ({ page })
   await expect(page.getByTestId('assistant-message').last()).toContainText('Here are the jobs I found');
   // The reply's text shows before the stream closes; Send replaces Stop once it has.
   await expect(page.getByRole('button', { name: 'Send' })).toBeVisible();
+  // The agent's words come before the jobs it found.
+  const textTop = (await page.getByTestId('assistant-message').last().boundingBox())!.y;
+  const jobsTop = (await page.getByTestId('search-sources').boundingBox())!.y;
+  expect(textTop).toBeLessThan(jobsTop);
 
   await page.reload();
   await expect(page.getByTestId('user-message')).toHaveText('Senior backend jobs in Tel Aviv');

@@ -63,6 +63,12 @@ export function setChatContext(chatKey: string, context: ChatContext) {
   chatContexts.set(chatKey, context);
 }
 
+/** A reply's parts with its text before its tool results, each keeping its original index (the React key). */
+function textFirst<P extends { type: string }>(parts: P[]): { part: P; i: number }[] {
+  const indexed = parts.map((part, i) => ({ part, i }));
+  return [...indexed.filter(p => p.part.type === 'text'), ...indexed.filter(p => p.part.type !== 'text')];
+}
+
 function readSaved(storageKey: string): AssistantMessage[] {
   try {
     const saved = sessionStorage.getItem(storageKey);
@@ -217,7 +223,8 @@ function Chat({
                   )}
                 </div>
               ) : (
-                message.parts.map((part, i) =>
+                // The agent searches first and writes after; people read its words first, then the jobs.
+                textFirst(message.parts).map(({ part, i }) =>
                   part.type === 'text' ? (
                     <div key={i} data-testid="assistant-message">
                       <RichText text={part.text} />
