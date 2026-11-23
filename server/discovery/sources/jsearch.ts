@@ -24,7 +24,7 @@ interface JSearchJob {
 }
 
 const TTL = 30 * 60 * 1000;
-const JSEARCH_TIMEOUT_MS = 25_000;
+const JSEARCH_TIMEOUT_MS = 20_000;
 
 /**
  * Search parameters, Israel by default: JSearch searches the US unless told otherwise, so every request sets
