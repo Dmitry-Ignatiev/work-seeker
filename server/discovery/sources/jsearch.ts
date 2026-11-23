@@ -24,6 +24,7 @@ interface JSearchJob {
 }
 
 const TTL = 30 * 60 * 1000;
+const JSEARCH_TIMEOUT_MS = 20_000;
 
 /**
  * Search parameters, Israel by default: JSearch searches the US unless told otherwise, so every request sets
@@ -78,38 +79,40 @@ export const jsearch: SourceAdapter = {
   name: 'jsearch',
   label: 'JSearch',
   enabled: () => Boolean(process.env.JSEARCH_API_KEY),
-  // Google for Jobs answers in 4–12 s; the other sources' 8 s cut it off half the time.
-  timeoutMs: 15_000,
+  // Google for Jobs answers in 4–15 s (a city or region search is the slow end); 15 s cut those off.
+  timeoutMs: JSEARCH_TIMEOUT_MS,
   async search(input) {
     const params = jsearchParams(input);
     // JSearch v5: /search-v2 returns { data: { jobs, cursor } } (the old /search returned { data: [...] }).
     const data = await cached(`jsearch:${params}`, TTL, () =>
-      getJson<{ data: { jobs?: JSearchJob[] } | JSearchJob[] }>(`https://jsearch.p.rapidapi.com/search-v2?${params}`, {
-        headers: {
-          'X-RapidAPI-Key': process.env.JSEARCH_API_KEY!,
-          'X-RapidAPI-Host': 'jsearch.p.rapidapi.com',
+      getJson<{ data: { jobs?: JSearchJob[] } | JSearchJob[] }>(
+        `https://jsearch.p.rapidapi.com/search-v2?${params}`,
+        {
+          headers: {
+            'X-RapidAPI-Key': process.env.JSEARCH_API_KEY!,
+            'X-RapidAPI-Host': 'jsearch.p.rapidapi.com',
+          },
         },
-      }),
+        JSEARCH_TIMEOUT_MS,
+      ),
     );
     const jobs = Array.isArray(data.data) ? data.data : (data.data?.jobs ?? []);
-    return jobs.map(
-      (j): Job => {
-        const cur = j.job_salary_currency;
-        const symbol = !cur || cur === 'USD' ? '$' : `${cur} `;
-        return {
-          id: `jsearch:${j.job_id}`,
-          source: 'jsearch',
-          title: j.job_title,
-          company: j.employer_name,
-          location: jsearchLocation(j),
-          remote: Boolean(j.job_is_remote),
-          salary: formatSalary(j.job_min_salary, j.job_max_salary, symbol),
-          tags: [j.job_employment_type, j.job_publisher].filter(Boolean) as string[],
-          url: j.job_apply_link,
-          postedAt: j.job_posted_at_datetime_utc,
-          description: j.job_description,
-        };
-      },
-    );
+    return jobs.map((j): Job => {
+      const cur = j.job_salary_currency;
+      const symbol = !cur || cur === 'USD' ? '$' : `${cur} `;
+      return {
+        id: `jsearch:${j.job_id}`,
+        source: 'jsearch',
+        title: j.job_title,
+        company: j.employer_name,
+        location: jsearchLocation(j),
+        remote: Boolean(j.job_is_remote),
+        salary: formatSalary(j.job_min_salary, j.job_max_salary, symbol),
+        tags: [j.job_employment_type, j.job_publisher].filter(Boolean) as string[],
+        url: j.job_apply_link,
+        postedAt: j.job_posted_at_datetime_utc,
+        description: j.job_description,
+      };
+    });
   },
 };
