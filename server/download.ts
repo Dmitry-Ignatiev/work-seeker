@@ -26,8 +26,15 @@ export function cvDownload(
     const { id } = await ctx.params;
 
     try {
-      const { buffer, fileName } = await render(user.id, id);
-      const ascii = fileName.replace(/[^\x20-\x7e]/g, '').replace(/"/g, '').trim() || 'CV';
+      const rendered = await render(user.id, id);
+      const { buffer } = rendered;
+      // An uploaded CV's label is its file name ("CV.docx"): drop that ending so it isn't doubled.
+      const fileName = rendered.fileName.replace(/\.(docx|pdf)$/i, '').trim() || 'CV';
+      const ascii =
+        fileName
+          .replace(/[^\x20-\x7e]/g, '')
+          .replace(/"/g, '')
+          .trim() || 'CV';
       return new Response(new Uint8Array(buffer), {
         headers: {
           'Content-Type': CONTENT_TYPES[format],

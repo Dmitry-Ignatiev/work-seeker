@@ -1,5 +1,6 @@
 import 'server-only';
 import JSZip from 'jszip';
+import { readDocxLayout } from './docx-layout';
 import { collectLinks, MAX_LINKS, type RawLink } from './links';
 import { cleanPdfText, CV_MAX_BYTES, CV_MAX_PAGES, CvUploadError, type ExtractedCv } from './pdf';
 
@@ -135,8 +136,23 @@ async function parse(bytes: Uint8Array): Promise<ExtractedCv> {
   const pageCount = Number.isInteger(declaredPages) && declaredPages > 0 ? declaredPages : 1;
   if (pageCount > CV_MAX_PAGES) throw new CvUploadError(`The CV has more than ${CV_MAX_PAGES} pages.`);
 
-  // No page layout: Word files don't carry positions like a PDF, so tailored files use the clean template.
-  return { text: text.slice(0, MAX_TEXT_CHARS), pageCount, links: collectLinks(links), layout: null };
+  // The look of the file (fonts, bold, headings, bullets, dates on the right), so downloads keep it.
+  // Anything it can't redraw as one column (tables, text boxes, Hebrew) falls back to the plain layout.
+  let layout = null;
+  try {
+    layout = readDocxLayout({
+      document,
+      styles: await readText(zip, 'word/styles.xml'),
+      numbering: await readText(zip, 'word/numbering.xml'),
+      theme: await readText(zip, 'word/theme/theme1.xml'),
+      headers: (await Promise.all(headers.map(path => readText(zip, path)))).filter((xml): xml is string => Boolean(xml)),
+      rels: readRelationships(await readText(zip, 'word/_rels/document.xml.rels')),
+      pageCount,
+    });
+  } catch {
+    layout = null; // An unusual file: the text is what matters.
+  }
+  return { text: text.slice(0, MAX_TEXT_CHARS), pageCount, links: collectLinks(links), layout };
 }
 
 /**
@@ -146,7 +162,8 @@ async function parse(bytes: Uint8Array): Promise<ExtractedCv> {
 export async function extractDocxText(bytes: Uint8Array): Promise<ExtractedCv> {
   if (bytes.byteLength === 0) throw new CvUploadError('The file is empty.');
   if (bytes.byteLength > CV_MAX_BYTES) throw new CvUploadError('The file is larger than 4 MB.');
-  if (isOldWordDoc(bytes)) throw new CvUploadError('This is an older Word file (.doc). Save it as .docx or PDF and upload again.');
+  if (isOldWordDoc(bytes))
+    throw new CvUploadError('This is an older Word file (.doc). Save it as .docx or PDF and upload again.');
   if (!isZip(bytes)) throw new CvUploadError('Only PDF or Word (.docx) files are supported.');
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
