@@ -12,8 +12,8 @@ describe('extractDocxText', () => {
     );
     expect(text.split('\n')).toEqual(SAMPLE_CV_LINES);
     expect(pageCount).toBe(1);
-    // Word files carry no page positions: tailored files use the clean template.
-    expect(layout).toBeNull();
+    // The look is read too (see cv-docx-layout.test.ts), page header first like the text.
+    expect(layout?.paragraphs.map(p => p.runs.map(r => r.text).join(''))).toEqual(SAMPLE_CV_LINES.filter(l => l.trim()));
   });
 
   it('keeps hyperlinks with the text they sit on', async () => {
@@ -56,7 +56,7 @@ describe('extractDocxText', () => {
     await expect(extractDocxText(await makeDocx(['CV']))).rejects.toThrow('No text found');
   });
 
-  it("refuses a part that would unzip to more than the limit (zip bomb)", async () => {
+  it('refuses a part that would unzip to more than the limit (zip bomb)', async () => {
     const zip = await JSZip.loadAsync(await makeDocx(SAMPLE_CV_LINES));
     zip.file('word/document.xml', `<w:document>${' '.repeat(6 * 1024 * 1024)}</w:document>`);
     const bytes = await zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' });
